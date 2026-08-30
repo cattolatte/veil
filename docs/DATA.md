@@ -54,6 +54,33 @@ zero true positives, so precision numbers stay honest. (An earlier revision
 used 16 random digits, which pass Luhn about 10% of the time — real card
 numbers mislabelled as decoys, quietly inflating precision.)
 
+## Provenance and licensing
+
+Every external asset, where it came from, and what its terms allow. Checked
+because a hackathon submission that ships an asset it cannot legally use is a
+disqualification risk, not a footnote.
+
+| Asset | Source | Licence | Gated | Used for |
+|---|---|---|---|---|
+| `pii-masking-300k` | HuggingFace `ai4privacy` | Open (research/commercial per card) | No | External validation, tagger training |
+| ScreenSpot-v2 | HuggingFace `OS-Copilot` | Open | No | Screen-grounding evaluation |
+| WIDER FACE samples | HuggingFace `Bingsu/wider_face_yolo` | Open, research | No | Vision-pass test images |
+| YuNet ONNX | GitHub `opencv/opencv_zoo` | **Apache-2.0** | No | **Ships in the extension** |
+| ONNX Runtime Web | npm `onnxruntime-web` | **MIT** | No | **Ships in the extension** |
+| Harvested pages | Live fetch (Wikipedia, MDN, W3C, python.org…) | Page content not redistributed | — | Real-page evaluation |
+
+Two notes on the last row. Harvested pages are **evaluation fixtures, not a
+redistributed dataset** — `datagen/harvest_out/` is gitignored and regenerated
+by fetching. And the harvester loads a fixed, modest list of public,
+robots-friendly pages at human pace; it is not a crawler.
+
+Only two assets actually ship: YuNet (Apache-2.0) and ONNX Runtime (MIT). Both
+permit redistribution.
+
+**`UGround-V1-Data` was deliberately not used** — 424.5 GB and `gated: auto`,
+requiring a licence acceptance under the user's own account. See
+[ADR-005](adr/005-small-vision-model.md).
+
 ## Three corpora, three different truths
 
 The detector is scored on three sets, because each catches what the others hide:
