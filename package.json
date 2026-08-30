@@ -6,10 +6,13 @@
   "scripts": {
     "build": "node build.mjs",
     "watch": "node build.mjs --watch",
-    "eval": "node eval/detect.mjs datagen/out/manifest.jsonl eval/out/predictions.jsonl"
+    "eval": "node eval/detect.mjs datagen/out/manifest.jsonl eval/out/predictions.jsonl",
+    "test": "node --test tests/pii.test.mjs tests/invariants.test.mjs",
+    "test:invariants": "node --test tests/invariants.test.mjs"
   },
   "devDependencies": {
-    "esbuild": "^0.24.0"
+    "esbuild": "^0.24.0",
+    "jsdom": "^30.0.1"
   },
   "dependencies": {
     "onnxruntime-web": "^1.29.0"

@@ -26,11 +26,16 @@ export function interactiveElements(root = document) {
  * trustworthy size is available.
  */
 export function viewportSize() {
+  // Read every global off globalThis. `visualViewport?.width` looks safe but
+  // optional chaining does NOT guard an UNDECLARED binding - it throws
+  // ReferenceError, which would abort the whole scan and redact nothing.
+  const vv = globalThis.visualViewport;
+  const doc = globalThis.document;
   const cands = [
-    [window.innerWidth, window.innerHeight],
-    [visualViewport?.width, visualViewport?.height],
-    [document.documentElement?.clientWidth, document.documentElement?.clientHeight],
-    [document.body?.clientWidth, document.body?.clientHeight],
+    [globalThis.innerWidth, globalThis.innerHeight],
+    [vv?.width, vv?.height],
+    [doc?.documentElement?.clientWidth, doc?.documentElement?.clientHeight],
+    [doc?.body?.clientWidth, doc?.body?.clientHeight],
   ];
   for (const [w, h] of cands) if (w > 0 && h > 0) return { w, h };
   return null;
