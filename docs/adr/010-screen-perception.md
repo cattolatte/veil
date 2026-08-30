@@ -48,11 +48,12 @@ Trained on the generator alone, the model scored **99.8% F1 on its own held-out
 split and 12.5% on real pages, flagging 50% of the screen.** It had learned
 where PII sits on that template, not what it looks like.
 
-| Training data | Real-page F1 | Screen flagged |
-|---|---:|---:|
-| Fixed synthetic template | 12.5% | 50.0% |
-| Randomised synthetic layout | 18.4% | 14.3% |
-| **Synthetic + real harvested pages** | **72.2%** | **3.9%** |
+| Training data | Real pages | Real-page F1 | Screen flagged |
+|---|---:|---:|---:|
+| Fixed synthetic template | 0 | 12.5% | 50.0% |
+| Randomised synthetic layout | 0 | 18.4% | 14.3% |
+| + 117 real harvested pages | 117 | 72.2% | 3.9% |
+| **+ 384 real harvested pages** | **384** | **84.1%** | **4.0%** |
 
 Randomising layout, typography and adding prose filler helped — the positive
 rate fell from 5.9% to 3.4% of cells, closer to reality — but nowhere near
@@ -63,12 +64,23 @@ Validation is a held-out split of real pages by page, never a synthetic split.
 A synthetic split cannot answer the only question that matters, and answered it
 wrongly once already.
 
+## Fusing with the DOM
+
+The two channels fail in opposite directions, so the DOM arbitrates. Where the
+DOM can account for a region — ordinary text the scanner examined and found
+clean — a screen flag is more likely a false positive than a discovery, and is
+suppressed. Where the DOM demonstrably cannot see (canvas, image, video), the
+screen model is the only witness and its flag stands. `unscanned` regions are
+never suppressed. Implemented in `extension/src/vision/fuse.js`.
+
 ## Consequences
 
-At threshold 0.9 on held-out real pages: **P 75.9%, R 68.8%, F1 72.2%, 3.9% of
-screen masked.** Recall is weighted slightly above precision because this
-channel exists to catch what the DOM missed — a false positive costs a blacked
-rectangle, a false negative leaks.
+At threshold 0.95 on **127 held-out real pages**: **P 87.6%, R 80.8%, F1 84.1%,
+4.0% of screen masked.**
+
+Real pages proved to be the whole curve. Tripling them — 117 to 384 — moved F1
+twelve points; no architectural change came close. That is worth recording
+because the instinct when a model underperforms is to change the model.
 
 Cost: 1.7 MB model, ~160 ms CPU inference, and a `captureVisibleTab`
 permission. All three are real and all three are the price of metric 1.

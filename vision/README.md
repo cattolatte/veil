@@ -17,25 +17,31 @@ the DOM.
 
 Layouts the model never trained on, split by page:
 
+127 held-out real pages.
+
 | threshold | precision | recall | F1 | screen flagged |
 |---|---:|---:|---:|---:|
-| 0.5 | 57.1% | 82.8% | 67.6% | 6.2% |
-| 0.7 | 64.5% | 78.0% | 70.6% | 5.2% |
-| **0.9** | **75.9%** | **68.8%** | **72.2%** | **3.9%** |
-| 0.95 | 81.2% | 63.4% | 71.2% | 3.4% |
-| 0.99 | 90.7% | 49.1% | 63.7% | 2.3% |
+| 0.5 | 64.5% | 91.7% | 75.8% | 6.1% |
+| 0.7 | 72.4% | 89.6% | 80.1% | 5.3% |
+| 0.9 | 83.2% | 84.8% | 84.0% | 4.4% |
+| **0.95** | **87.6%** | **80.8%** | **84.1%** | **4.0%** |
+| 0.99 | 93.8% | 70.9% | 80.8% | 3.3% |
 
-Shipped at **0.9**, the F1 peak. Recall is weighted slightly above precision
-because this channel exists to catch what the DOM missed — a false positive
-costs a blacked rectangle, a false negative leaks.
+Shipped at **0.95**. F1 is flat between 0.90 and 0.95, so the tie breaks on
+precision: redaction precision is its own 20% metric, and every false positive
+is a black rectangle over content the user wanted to see.
 
 ## Why training data decided everything
 
-| Training data | Real-page F1 | Screen flagged |
-|---|---:|---:|
-| Fixed synthetic template | 12.5% | 50.0% |
-| Randomised synthetic layout | 18.4% | 14.3% |
-| **Synthetic + real harvested pages** | **72.2%** | **3.9%** |
+| Training data | Real pages used | Real-page F1 | Screen flagged |
+|---|---:|---:|---:|
+| Fixed synthetic template | 0 | 12.5% | 50.0% |
+| Randomised synthetic layout | 0 | 18.4% | 14.3% |
+| + 117 real harvested pages | 117 | 72.2% | 3.9% |
+| **+ 384 real harvested pages** | **384** | **84.1%** | **4.0%** |
+
+Real pages are the scarce resource and the whole curve. Tripling them moved F1
+twelve points; nothing else came close.
 
 The first model scored **99.8% F1 on its own held-out split**. It had learned
 where PII sits on one template. On real pages it flagged half the screen.
@@ -49,6 +55,7 @@ once already.
 ```bash
 python datagen/generate.py --n 500 --out datagen/screens_out --width 1280 --height 800
 python datagen/harvest.py --out datagen/harvest_big --urls datagen/urls_large.txt --width 1280 --height 800
+python datagen/harvest.py --out datagen/harvest_xl  --urls datagen/urls_xl.txt    --width 1280 --height 800
 python vision/prepare.py     # splits real pages by page
 python vision/train.py       # validates on held-out real pages throughout
 python vision/export.py      # -> vision/out/screen.onnx (1.7 MB)

@@ -40,7 +40,7 @@ Every requirement stated in the problem statement, and where it is implemented.
 
 | # | Metric | Weight | Measured |
 |---|---|---:|---|
-| 1 | Accuracy of visual context from screen | 25% | DOM structural capture + screen model **F1 72.2%** on held-out real pages |
+| 1 | Accuracy of visual context from screen | 25% | DOM structural capture + screen model **F1 84.1%** on 127 held-out real pages |
 | 2 | Recall & precision, PII detection | 20% | Real pages **P 100%**, text recall **92.5%** |
 | 3 | Precision of redaction | 20% | Real pages **100%**, 0 false positives |
 | 4 | Client resource utilisation | 20% | **3.1 MB** heap (DOM pass); models 227 KB + 1.7 MB |
