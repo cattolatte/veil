@@ -58,13 +58,24 @@ export function boxesFromRegions(regions, dpr = 1) {
   }));
 }
 
-/** Destructively mask regions on a canvas before any pixels leave the client. */
+function blackout(ctx, b) {
+  ctx.fillStyle = "#000";
+  ctx.fillRect(b.x, b.y, b.w, b.h);
+}
+
+/**
+ * Destructively mask regions on a canvas before any pixels leave the client.
+ *
+ * Pixelation needs getImageData, which throws SecurityError on a canvas
+ * tainted by cross-origin content — extremely common in the wild. An
+ * unhandled throw here would abort the whole redaction pass and let the
+ * frame through unmasked, so every failure path falls back to a blackout.
+ * Degrade the picture, never the privacy.
+ */
 export function maskCanvas(ctx, boxes) {
   for (const b of boxes) {
-    if (b.mode === "blackout") {
-      ctx.fillStyle = "#000";
-      ctx.fillRect(b.x, b.y, b.w, b.h);
-    } else {
+    if (b.mode === "blackout") { blackout(ctx, b); continue; }
+    try {
       // Cheap pixelation. Avoids a full blur pass, which costs latency —
       // and latency is 15% of the score.
       const img = ctx.getImageData(b.x, b.y, b.w, b.h);
@@ -73,9 +84,12 @@ export function maskCanvas(ctx, boxes) {
         for (let x = 0; x < b.w; x += block) {
           const i = ((y * b.w) + x) * 4;
           ctx.fillStyle = `rgb(${img.data[i]},${img.data[i + 1]},${img.data[i + 2]})`;
-          ctx.fillRect(b.x + x, b.y + y, block, block);
+          // Clamp so the final row/column cannot paint outside the region.
+          ctx.fillRect(b.x + x, b.y + y, Math.min(block, b.w - x), Math.min(block, b.h - y));
         }
       }
+    } catch {
+      blackout(ctx, b);
     }
   }
 }
