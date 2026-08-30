@@ -14,6 +14,7 @@ import os
 import re
 from typing import Any, Literal
 
+import llm
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -59,6 +60,9 @@ class Context(BaseModel):
 class ActRequest(BaseModel):
     goal: str
     context: Context
+    # Already redacted client-side: sensitive pixels were destroyed before
+    # encoding, so this is safe to forward to a model.
+    screenshot: str | None = None
 
 
 class Action(BaseModel):
@@ -72,6 +76,7 @@ class Plan(BaseModel):
     action: Action | None
     reason: str
     leaked: list[str] = []
+    planner: str = "rules"
 
 
 def audit_for_leaks(ctx: Context) -> list[str]:
@@ -138,7 +143,37 @@ def choose_action(goal: str, ctx: Context) -> Plan:
 
 @app.post("/act", response_model=Plan)
 def act(req: ActRequest) -> Plan:
-    return choose_action(req.goal, req.context)
+    """Prefer the LLM/VLM; fall back to rules so the demo degrades instead of
+    failing. The fallback is not a placeholder — a planner that always answers
+    is worth more on stage than one that is occasionally smarter."""
+    leaked = audit_for_leaks(req.context)
+
+    llm_action = llm.plan(req.goal, req.context, req.screenshot)
+    if llm_action:
+        kind = llm_action.pop("type")
+        reason = llm_action.pop("reason", "")
+        return Plan(
+            action=Action(type=kind, **{k: v for k, v in llm_action.items()
+                                        if k in {"index", "text", "dy"}}),
+            reason=reason or "planned by model",
+            leaked=leaked,
+            planner=f"llm:{os.getenv('VEIL_MODEL', 'gpt-4o-mini')}",
+        )
+
+    plan = choose_action(req.goal, req.context)
+    plan.planner = "rules" if not llm.available() else "rules (model unavailable)"
+    return plan
+
+
+@app.get("/planner")
+def planner() -> dict[str, object]:
+    """Which planner is live. Useful on stage: it makes the LLM path visible
+    rather than something the audience takes on trust."""
+    return {
+        "llm_configured": llm.available(),
+        "model": os.getenv("VEIL_MODEL", "gpt-4o-mini"),
+        "base_url": os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+    }
 
 
 @app.get("/health")

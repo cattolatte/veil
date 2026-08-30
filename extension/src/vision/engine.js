@@ -12,14 +12,9 @@
  * A slow page loses picture quality, never privacy.
  */
 import { INPUT_SIZE, preprocess, postprocess } from "./yunet.js";
+import { assetUrl, loadOrt } from "./runtime.js";
 
 const MODEL_PATH = "models/yunet_face.onnx";
-
-/** Resolve a packaged asset in the extension, or relative when under test. */
-function assetUrl(path) {
-  const rt = globalThis.chrome?.runtime ?? globalThis.browser?.runtime;
-  return rt?.getURL ? rt.getURL(path) : path;
-}
 
 export class VisionEngine {
   #session = null;
@@ -48,14 +43,10 @@ export class VisionEngine {
   }
 
   async #doInit() {
-    const ort = globalThis.ort ?? (await import(/* webpackIgnore: true */ assetUrl("vendor/ort.webgpu.min.js")).then(() => globalThis.ort));
-    if (!ort) throw new Error("onnxruntime not available");
+    // Shared loader: ORT caches a failed init for the page lifetime, so two
+    // independent load attempts would report a stale error rather than retry.
+    const ort = await loadOrt();
     this.#ort = ort;
-    // Must be an ABSOLUTE url. ORT resolves the loader as a module specifier,
-    // and a bare relative path like "vendor/" throws
-    // "Failed to resolve module specifier" before any backend initialises.
-    ort.env.wasm.wasmPaths = new URL(assetUrl("vendor/"), location.href).href;
-    ort.env.wasm.numThreads = 1;          // extra workers cost memory we are scored on
 
     const providers = (globalThis.navigator && "gpu" in globalThis.navigator) ? ["webgpu", "wasm"] : ["wasm"];
     this.#session = await ort.InferenceSession.create(assetUrl(MODEL_PATH), {
