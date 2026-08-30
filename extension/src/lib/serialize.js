@@ -118,8 +118,13 @@ export function buildContext({ maxElements = 120 } = {}) {
   while ((node = walker.nextNode())) {
     const parent = node.parentElement;
     if (!parent || SKIP_TAGS.has(parent.tagName)) continue;
-    const raw = node.nodeValue.trim();
-    if (!raw) continue;
+    // NOT trimmed. Text node values already carry the real whitespace, so
+    // joining them with "" reproduces exactly what the page renders. Trimming
+    // and re-joining with " " inserts a separator that was never on screen:
+    // <em>2341</em><em>23412346</em> became "2341 23412346", which is not a
+    // valid Aadhaar shape and silently stopped matching. Found by the demo.
+    const raw = node.nodeValue;
+    if (!raw || !raw.trim()) continue;
     const block = blockAncestor(parent);
     if (!groups.has(block)) groups.set(block, []);
     groups.get(block).push(raw);
@@ -127,11 +132,31 @@ export function buildContext({ maxElements = 120 } = {}) {
 
   const chunks = [];
   let textBudget = 8000;
+  // Tail of the previous block, used ONLY as lookbehind context.
+  //
+  // Labels and values usually live in sibling blocks — `<div>Aadhaar</div>
+  // <div>2341 2341 2346</div>` in a table row, definition list or form layout.
+  // Scanning each block in isolation means the label is invisible to patterns
+  // that require corroborating context (ADR-006), so a labelled Aadhaar right
+  // next to the word "Aadhaar" went undetected. Found by the demo page.
+  //
+  // The prefix is prepended for matching and then subtracted back out, so it
+  // supplies context without letting values from separate blocks fuse into a
+  // single false match.
+  let prevTail = "";
   for (const parts of groups.values()) {
     if (textBudget <= 0) break;
-    const raw = parts.join(" ");
-    if (raw.length < 3) continue;
-    const spans = scanText(raw);
+    // "" because the node values carry their own whitespace; then collapse
+    // runs so a single logical space never reads as several.
+    const raw = parts.join("").replace(/\s+/g, " ").trim();
+    if (raw.length < 3) { prevTail = raw; continue; }
+    // Separator matters: gluing the label directly onto the value destroys the
+    // \b word boundary the patterns rely on.
+    const prefix = prevTail ? prevTail.slice(-48) + " " : "";
+    const spans = scanText(prefix + raw)
+      .filter((s) => s.start >= prefix.length)
+      .map((s) => ({ ...s, start: s.start - prefix.length, end: s.end - prefix.length }));
+    prevTail = raw;
     if (spans.length) {
       stats.redactedSpans += spans.length;
       for (const s of spans) bump(s.kind);

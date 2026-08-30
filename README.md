@@ -169,6 +169,19 @@ Load the extension:
 
 ---
 
+## Demo
+
+```bash
+npm install && npm run build
+cp extension/dist/veil-test.js demo/
+cd demo && python3 -m http.server 8799
+```
+
+Open `http://127.0.0.1:8799/index.html` and press **Run agent**. The left panel
+is a real page full of genuine identifiers; the right panel is everything that
+crossed the network. No server or extension install required. Script and
+talking points in [docs/DEMO.md](docs/DEMO.md).
+
 ## Tests
 
 ```bash
@@ -220,6 +233,8 @@ Add screenshots by dropping `--no-screenshots` (needs `playwright install chromi
 | [docs/adr/](docs/adr/README.md) | Nine architecture decision records |
 | [docs/RELEASING.md](docs/RELEASING.md) | Versioning and release conventions |
 | [CHANGELOG.md](CHANGELOG.md) | Measured deltas per milestone |
+| [docs/DEMO.md](docs/DEMO.md) | Two-minute demo script, and answers to the obvious questions |
+| [docs/ONE_PAGER.md](docs/ONE_PAGER.md) | The whole project on one page |
 | [ner/README.md](ner/README.md) | The tagger, and why it is not shipped |
 | [.github/workflows/ci.yml](.github/workflows/ci.yml) | Tests, metrics floor, repository hygiene |
 

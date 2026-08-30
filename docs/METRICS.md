@@ -72,6 +72,14 @@ preprocessing ([ADR-007](adr/007-block-ancestor-grouping.md)).
 
 ## Known measurement limitations
 
+**The offline harness does not exercise the live extraction path.**
+`eval/detect.mjs` reimplements text extraction over raw HTML; the product uses
+`serialize.js` over a live DOM. So the corpus scores validate the *patterns*,
+not the *pipeline*. A bug where block grouping inserted a space that was not in
+the rendered text — turning a split Aadhaar into an unmatched shape — was
+invisible to all three corpora and was found only by running the demo page.
+Closing this would mean driving `serialize.js` through JSDOM in the harness.
+
 - **The real-page corpus harvests live pages**, so page content changes between
   runs and the page count varies. Observed: F1 81.9% (29 pages) → 81.8% (28
   pages). Treat the third significant figure as noise.
