@@ -34,7 +34,8 @@
     {
       "resources": [
         "dist/*",
-        "models/*"
+        "models/*",
+        "vendor/*"
       ],
       "matches": [
         "<all_urls>"

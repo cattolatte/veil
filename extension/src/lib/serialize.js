@@ -94,7 +94,12 @@ export function buildContext({ maxElements = 120 } = {}) {
   for (const el of document.querySelectorAll("img,video,canvas")) {
     const r = visibleRect(el, vp);
     if (!r) continue;
-    visualCandidates.push({ tag: el.tagName.toLowerCase(), box: boxOf(r), alt: safeLabel(el.getAttribute("alt")) });
+    // `el` is a live node reference for the vision pass. It never leaves the
+    // client: content.js deletes visualCandidates before serialising, and
+    // JSON.stringify could not encode it anyway. Carrying it beats recovering
+    // the element with elementFromPoint, which picks the wrong node whenever
+    // something overlaps and shifts with scroll.
+    visualCandidates.push({ el, tag: el.tagName.toLowerCase(), box: boxOf(r), alt: safeLabel(el.getAttribute("alt")) });
   }
 
   budget.mark("visualCandidates");

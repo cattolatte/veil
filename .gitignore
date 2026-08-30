@@ -33,3 +33,6 @@ node_modules/
 
 # external corpora (large, re-downloadable)
 datagen/external/
+
+# onnxruntime assets, staged by npm run build
+extension/vendor/
