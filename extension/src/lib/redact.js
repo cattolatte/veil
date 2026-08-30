@@ -13,6 +13,7 @@
 const PLACEHOLDER = {
   aadhaar: "[[AADHAAR]]", pan: "[[PAN]]", card: "[[CARD]]", ifsc: "[[IFSC]]",
   upi: "[[UPI]]", email: "[[EMAIL]]", phone_in: "[[PHONE]]", dob: "[[DOB]]",
+  id_number: "[[ID_NUMBER]]",
   password: "[[PASSWORD]]", sensitive_field: "[[SENSITIVE]]", visual_candidate: "[[IMAGE]]",
 };
 

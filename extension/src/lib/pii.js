@@ -56,6 +56,18 @@ export function isValidLuhn(digits) {
 /** Labels that identify an Aadhaar number in surrounding text. */
 const AADHAAR_CONTEXT = /(aadhaar|aadhar|uidai|\buid\b|आधार)/i;
 
+/**
+ * Labels that mark a numeric run as some OTHER government or account
+ * identifier. Measured against an external corpus, most "phone" false
+ * positives were licence, SSN and ID-card numbers sitting behind exactly
+ * these labels. They are still PII and still get redacted - they were simply
+ * being reported under the wrong kind.
+ */
+const ID_CONTEXT =
+  /(driver'?s?\s*licen[cs]e|licen[cs]e\s*(no|num|#)|social\s*(security\s*)?(number|num)?|ssn|passport|id\s*card|\bid\b\s*[:#]|applicant|account\s*(no|num|#)|employee\s*id|registration\s*(no|num))\s*[:#-]?\s*$/i;
+
+const MONTHS = "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t)?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?";
+
 const PATTERNS = [
   {
     kind: "aadhaar",
@@ -91,9 +103,31 @@ const PATTERNS = [
     severity: Severity.HIGH,
     re: /(?:\+?91[\s-]?)?\b[6-9]\d{9}\b/g,
     // A 10-digit mobile inside a longer digit run is probably not a phone.
-    verify: (m, ctx) => !/\d/.test(ctx.before.slice(-1)) && !/\d/.test(ctx.after[0] || ""),
+    verify: (m, ctx) =>
+      !/\d/.test(ctx.before.slice(-1)) &&
+      !/\d/.test(ctx.after[0] || "") &&
+      !ID_CONTEXT.test(ctx.before),
   },
   { kind: "dob",   severity: Severity.MEDIUM, re: /\b(?:0?[1-9]|[12]\d|3[01])[\/\-.](?:0?[1-9]|1[0-2])[\/\-.](?:19|20)\d{2}\b/g },
+  // ISO, optionally with a time component: 1977-04-07, 1977-04-07T00:00:00
+  { kind: "dob", severity: Severity.MEDIUM,
+    re: /\b(?:19|20)\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])(?:T\d{2}:\d{2}(?::\d{2})?)?\b/g },
+  // 17th February 1946 · 5 May 1966
+  { kind: "dob", severity: Severity.MEDIUM,
+    re: new RegExp(`\\b\\d{1,2}(?:st|nd|rd|th)?\\s+(?:${MONTHS})\\.?,?\\s+(?:19|20)\\d{2}\\b`, "gi") },
+  // May 5th, 1966 · October 18 1980
+  { kind: "dob", severity: Severity.MEDIUM,
+    re: new RegExp(`\\b(?:${MONTHS})\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?,?\\s+(?:19|20)\\d{2}\\b`, "gi") },
+  // January/88 — month with a two-digit year
+  { kind: "dob", severity: Severity.MEDIUM,
+    re: new RegExp(`\\b(?:${MONTHS})\\/\\d{2}\\b`, "gi") },
+  // Labelled government or account identifier. Alphanumeric, because real
+  // passport and licence numbers mix letters and digits (VDO631913G). The
+  // label is required, so a bare token is never swept up on shape alone -
+  // that requirement is what keeps precision high on a pattern this loose.
+  { kind: "id_number", severity: Severity.CRITICAL,
+    re: /\b(?=[A-Z0-9-]{6,18}\b)(?=[^\s]*\d)[A-Z0-9][A-Z0-9-]{4,16}[A-Z0-9]\b/gi,
+    verify: (m, ctx) => ID_CONTEXT.test(ctx.before) },
 ];
 
 // ------------------------------------------------------------- structural
