@@ -1,0 +1,14 @@
+{
+  "name": "veil",
+  "version": "0.7.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "eval": "node eval/detect.mjs datagen/out/manifest.jsonl eval/out/predictions.jsonl"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}
