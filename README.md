@@ -252,6 +252,7 @@ docs/adr/           architecture decision records
 
 | Document | Contents |
 |---|---|
+| [docs/CONFORMANCE.md](docs/CONFORMANCE.md) | Every PS requirement, and where it is implemented |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Trust boundary, detection passes, budgets |
 | [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) | Assets, threats in and out of scope, residual risks, invariants |
 | [docs/METRICS.md](docs/METRICS.md) | What counts as a detection, exclusions, environment, seeds |
