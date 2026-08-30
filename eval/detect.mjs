@@ -102,7 +102,16 @@ for (const line of lines) {
   }
   tBlock += performance.now() - t0;
 
-  preds.push({ id: page.id, joined, perNode, block });
+  // Pre-existing PII on the page, detected before anything was injected.
+  // Subtracted at scoring time so genuine finds are not counted as errors.
+  const baseline = [];
+  if (page.baseline_html) {
+    for (const chunk of [...textBlocks(page.baseline_html), ...attrValues(page.baseline_html)]) {
+      for (const s of scanText(chunk)) baseline.push({ kind: s.kind, text: chunk.slice(s.start, s.end) });
+    }
+  }
+
+  preds.push({ id: page.id, joined, perNode, block, baseline });
 }
 
 mkdirSync(dirname(outPath), { recursive: true });

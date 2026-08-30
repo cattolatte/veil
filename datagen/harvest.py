@@ -98,7 +98,11 @@ INJECT_JS = """
     host.appendChild(c);
     el = c;
   } else {
-    el = mk(value);
+    // Dates on real pages are labelled ("Born: 15 March 1987"); a bare date in
+    // prose is not personal data. Planting one unlabelled would be testing a
+    // case the detector is deliberately built to ignore.
+    const prefix = kind === 'dob' ? 'Date of Birth: ' : '';
+    el = mk(prefix + value);
     host.appendChild(document.createTextNode(' '));
     host.appendChild(el);
   }
@@ -129,6 +133,12 @@ def harvest(urls, out: Path, per_page: int, width: int, height: int, seed: int) 
                 page.close()
                 continue
 
+            # Real pages carry real PII of their own — python.org and gnu.org
+            # publish genuine contact addresses. Detecting those is CORRECT, but
+            # the scorer would count them as false positives because we did not
+            # plant them. Capture the page first so they can be subtracted.
+            baseline_html = page.content()
+
             planted = []
             kinds = random.sample(list(GENERATORS), k=min(per_page, len(GENERATORS)))
             for j, kind in enumerate(kinds):
@@ -156,7 +166,7 @@ def harvest(urls, out: Path, per_page: int, width: int, height: int, seed: int) 
             page.screenshot(path=str(shot), full_page=False)
             manifest.append({
                 "id": i, "url": url, "screenshot": str(shot.relative_to(out)),
-                "html": html, "pii": planted,
+                "html": html, "baseline_html": baseline_html, "pii": planted,
                 "viewport": {"w": width, "h": height},
             })
             print(f"  {url[:58]:<58} {len(planted)} planted")

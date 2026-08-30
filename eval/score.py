@@ -60,6 +60,7 @@ def main() -> None:
         fn_k: Counter[str] = Counter()
         hard_total: Counter[str] = Counter()
         hard_found: Counter[str] = Counter()
+        stats_preexisting: Counter[str] = Counter()
 
         for p in preds:
             truth = truth_by_id[p["id"]]
@@ -72,6 +73,16 @@ def main() -> None:
             pool: dict[tuple[str, str], int] = defaultdict(int)
             for g in got:
                 pool[(g["kind"], norm(g["text"]))] += 1
+
+            # Subtract PII that was already on the page before injection.
+            # Finding a real contact address on python.org is a correct
+            # detection; counting it as a false positive measures the harness,
+            # not the detector.
+            for b in p.get("baseline", []):
+                key = (b["kind"], norm(b["text"]))
+                if pool.get(key, 0) > 0:
+                    pool[key] -= 1
+                    stats_preexisting[b["kind"]] += 1
 
             for t in gold:
                 key = (t["kind"], norm(t["value"]))
@@ -113,6 +124,12 @@ def main() -> None:
                     "canvas": "PII drawn into <canvas> - needs the vision pass",
                 }.get(h, "")
                 print(f"  {h:<12}{hard_found[h]:>3}/{hard_total[h]:<4}{rec:>8.1%}   {note}")
+
+        if stats_preexisting:
+            total_pre = sum(stats_preexisting.values())
+            kinds_pre = ", ".join(f"{k}:{v}" for k, v in stats_preexisting.most_common(6))
+            print(f"\n  pre-existing PII found on pages (excluded from FP): {total_pre}")
+            print(f"  {kinds_pre}")
 
         print(f"\n  rubric contribution")
         print(f"  {'-' * 45}")
