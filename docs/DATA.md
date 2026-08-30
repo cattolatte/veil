@@ -54,6 +54,38 @@ zero true positives, so precision numbers stay honest. (An earlier revision
 used 16 random digits, which pass Luhn about 10% of the time — real card
 numbers mislabelled as decoys, quietly inflating precision.)
 
+## Three corpora, three different truths
+
+The detector is scored on three sets, because each catches what the others hide:
+
+| Corpus | What it is | What it catches |
+|---|---|---|
+| `datagen/` | Our generator | Regressions; the only source of pixel-level redaction ground truth and of Indian identifiers |
+| ai4privacy | External, form-shaped documents | Whether we generalise beyond our own generator |
+| `harvest/` | **Real pages with injected PII** | Whether we survive real prose |
+
+The third one earns its place. Adding textual date patterns scored **93.1% F1**
+on ai4privacy and **12.8%** on real pages — 257 false positives across five
+pages, precision 99.4% → 7.1%. Encyclopedia articles are full of dates about
+the world; form corpora are full of dates about a person. Only real pages
+exposed it.
+
+Requiring birth context (`born`, `date of birth`, `D.O.B.`) before treating a
+date as PII:
+
+| Corpus | before | after |
+|---|---|---|
+| Real pages | P 7.1% · F1 12.8% | **P 80.8% · F1 75.0%** |
+| Synthetic | P 99.4% · F1 91.8% | P 99.4% · F1 88.9% |
+| ai4privacy | P 91.2% · F1 58.9% | P 91.9% · F1 46.5% |
+
+That cost on ai4privacy is real but partly an artifact: it is plain text with
+no DOM, so structural detection cannot contribute. In the product a date in an
+`autocomplete="bday"` field is caught structurally regardless of surrounding
+prose. The trade is tuned for the deployment distribution — an agent browsing
+real pages — and the alternative was a detector that redacts every date in
+every article.
+
 ## External validation — the number that matters
 
 Our own generator can only prove we did not regress. It cannot prove the
