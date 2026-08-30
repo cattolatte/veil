@@ -44,3 +44,6 @@ datagen/harvest_out/
 ner/data/
 ner/out/*.pt
 ner/out/
+
+# demo bundle, staged by npm run build
+demo/veil-test.js

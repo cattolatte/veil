@@ -80,7 +80,7 @@ jobs:
         with: { fetch-depth: 0 }
       - name: Assets that must not be committed
         run: |
-          if git ls-files | grep -qE 'extension/vendor/|node_modules/|\.onnx\.data$'; then
+          if git ls-files | grep -qE 'extension/vendor/|node_modules/|\.onnx\.data$|demo/veil-test\.js'; then
             echo "::error::build artefacts committed to the repository"; exit 1
           fi
           test -f extension/models/yunet_face.onnx || { echo "::error::model missing"; exit 1; }
