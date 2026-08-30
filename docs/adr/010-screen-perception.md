@@ -48,12 +48,13 @@ Trained on the generator alone, the model scored **99.8% F1 on its own held-out
 split and 12.5% on real pages, flagging 50% of the screen.** It had learned
 where PII sits on that template, not what it looks like.
 
-| Training data | Real pages | Real-page F1 | Screen flagged |
+| Training data | Real pages | Held-out | Real-page F1 |
 |---|---:|---:|---:|
-| Fixed synthetic template | 0 | 12.5% | 50.0% |
-| Randomised synthetic layout | 0 | 18.4% | 14.3% |
-| + 117 real harvested pages | 117 | 72.2% | 3.9% |
-| **+ 384 real harvested pages** | **384** | **84.1%** | **4.0%** |
+| Fixed synthetic template | 0 | 38 | 12.5% |
+| Randomised synthetic layout | 0 | 38 | 18.4% |
+| + real harvested pages | 117 | 38 | 72.2% |
+| + more real pages | 384 | 127 | 84.1% |
+| **+ 3,129 harvested pages** | **2,730** | **910** | **90.1%** |
 
 Randomising layout, typography and adding prose filler helped — the positive
 rate fell from 5.9% to 3.4% of cells, closer to reality — but nowhere near
@@ -75,12 +76,16 @@ never suppressed. Implemented in `extension/src/vision/fuse.js`.
 
 ## Consequences
 
-At threshold 0.95 on **127 held-out real pages**: **P 87.6%, R 80.8%, F1 84.1%,
-4.0% of screen masked.**
+At threshold 0.95 on **910 held-out real pages**: **P 92.8%, R 87.5%, F1 90.1%,
+3.7% of screen masked.**
 
-Real pages proved to be the whole curve. Tripling them — 117 to 384 — moved F1
-twelve points; no architectural change came close. That is worth recording
-because the instinct when a model underperforms is to change the model.
+Real pages proved to be the whole curve, and **the architecture never changed
+once** across five rounds of training. 117 real pages bought twelve points over
+synthetic-only; 384 bought twelve more; 2,730 bought six. Returns compress, but
+every gain came from data.
+
+That is worth recording because the instinct when a model underperforms is to
+change the model. Here that would have been wasted effort every single time.
 
 Cost: 1.7 MB model, ~160 ms CPU inference, and a `captureVisibleTab`
 permission. All three are real and all three are the price of metric 1.

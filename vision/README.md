@@ -17,15 +17,15 @@ the DOM.
 
 Layouts the model never trained on, split by page:
 
-127 held-out real pages.
+910 held-out real pages — layouts never trained on.
 
 | threshold | precision | recall | F1 | screen flagged |
 |---|---:|---:|---:|---:|
-| 0.5 | 64.5% | 91.7% | 75.8% | 6.1% |
-| 0.7 | 72.4% | 89.6% | 80.1% | 5.3% |
-| 0.9 | 83.2% | 84.8% | 84.0% | 4.4% |
-| **0.95** | **87.6%** | **80.8%** | **84.1%** | **4.0%** |
-| 0.99 | 93.8% | 70.9% | 80.8% | 3.3% |
+| 0.5 | 76.5% | 94.3% | 84.5% | 4.8% |
+| 0.7 | 82.8% | 92.9% | 87.6% | 4.4% |
+| 0.9 | 90.1% | 89.8% | 89.9% | 3.9% |
+| **0.95** | **92.8%** | **87.5%** | **90.1%** | **3.7%** |
+| 0.99 | 96.3% | 80.5% | 87.7% | 3.3% |
 
 Shipped at **0.95**. F1 is flat between 0.90 and 0.95, so the tie breaks on
 precision: redaction precision is its own 20% metric, and every false positive
@@ -33,15 +33,20 @@ is a black rectangle over content the user wanted to see.
 
 ## Why training data decided everything
 
-| Training data | Real pages used | Real-page F1 | Screen flagged |
+| Training data | Real pages | Held-out pages | Real-page F1 |
 |---|---:|---:|---:|
-| Fixed synthetic template | 0 | 12.5% | 50.0% |
-| Randomised synthetic layout | 0 | 18.4% | 14.3% |
-| + 117 real harvested pages | 117 | 72.2% | 3.9% |
-| **+ 384 real harvested pages** | **384** | **84.1%** | **4.0%** |
+| Fixed synthetic template | 0 | 38 | 12.5% |
+| Randomised synthetic layout | 0 | 38 | 18.4% |
+| + real harvested pages | 117 | 38 | 72.2% |
+| + more real pages | 384 | 127 | 84.1% |
+| **+ 3,129 harvested pages** | **2,730** | **910** | **90.1%** |
 
-Real pages are the scarce resource and the whole curve. Tripling them moved F1
-twelve points; nothing else came close.
+Real pages were the whole curve, and the model architecture never changed once
+across those five rows. The held-out set grew with it — 38 pages to 910 — so
+the final figure is also the most trustworthy one.
+
+Returns are compressing, as expected: 117→384 real pages bought twelve points,
+384→2,730 bought six.
 
 The first model scored **99.8% F1 on its own held-out split**. It had learned
 where PII sits on one template. On real pages it flagged half the screen.

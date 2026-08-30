@@ -114,7 +114,8 @@ INJECT_JS = """
 """
 
 
-def harvest(urls, out: Path, per_page: int, width: int, height: int, seed: int) -> None:
+def harvest(urls, out: Path, per_page: int, width: int, height: int, seed: int,
+            no_html: bool = False) -> None:
     random.seed(seed)
     shots = out / "screens"
     shots.mkdir(parents=True, exist_ok=True)
@@ -137,7 +138,7 @@ def harvest(urls, out: Path, per_page: int, width: int, height: int, seed: int) 
             # publish genuine contact addresses. Detecting those is CORRECT, but
             # the scorer would count them as false positives because we did not
             # plant them. Capture the page first so they can be subtracted.
-            baseline_html = page.content()
+            baseline_html = "" if no_html else page.content()
 
             planted = []
             kinds = random.sample(list(GENERATORS), k=min(per_page, len(GENERATORS)))
@@ -161,15 +162,18 @@ def harvest(urls, out: Path, per_page: int, width: int, height: int, seed: int) 
                 page.close()
                 continue
 
-            html = page.content()
+            html = "" if no_html else page.content()
             shot = shots / f"{i:04d}.png"
             page.screenshot(path=str(shot), full_page=False)
             manifest.append({
                 "id": i, "url": url, "screenshot": str(shot.relative_to(out)),
-                "html": html, "baseline_html": baseline_html, "pii": planted,
+                "html": html,
+                "baseline_html": "" if no_html else baseline_html,
+                "pii": planted,
                 "viewport": {"w": width, "h": height},
             })
-            print(f"  {url[:58]:<58} {len(planted)} planted")
+            if i % 25 == 0 or i == len(urls) - 1:
+                print(f"  [{i+1}/{len(urls)}] {url[:52]:<52} {len(planted)} planted", flush=True)
             page.close()
         browser.close()
 
@@ -188,9 +192,15 @@ def main() -> None:
     ap.add_argument("--width", type=int, default=1440)
     ap.add_argument("--height", type=int, default=900)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument(
+        "--no-html", action="store_true",
+        help="Omit page HTML from the manifest. The text scorer needs it; the "
+             "vision trainer only needs screenshots and boxes, and storing it "
+             "costs ~1.8 MB per page (642 MB across 356).",
+    )
     a = ap.parse_args()
     urls = a.urls.read_text().split() if a.urls else DEFAULT_URLS
-    harvest(urls, a.out, a.per_page, a.width, a.height, a.seed)
+    harvest(urls, a.out, a.per_page, a.width, a.height, a.seed, a.no_html)
 
 
 if __name__ == "__main__":
