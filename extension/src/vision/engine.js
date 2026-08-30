@@ -57,7 +57,7 @@ export class VisionEngine {
     ort.env.wasm.wasmPaths = new URL(assetUrl("vendor/"), location.href).href;
     ort.env.wasm.numThreads = 1;          // extra workers cost memory we are scored on
 
-    const providers = ("gpu" in navigator) ? ["webgpu", "wasm"] : ["wasm"];
+    const providers = (globalThis.navigator && "gpu" in globalThis.navigator) ? ["webgpu", "wasm"] : ["wasm"];
     this.#session = await ort.InferenceSession.create(assetUrl(MODEL_PATH), {
       executionProviders: providers,
       graphOptimizationLevel: "all",

@@ -169,6 +169,24 @@ Load the extension:
 
 ---
 
+## Tests
+
+```bash
+npm test                 # unit tests + the five privacy invariants
+npm run test:invariants  # invariants alone
+```
+
+The invariant suite asserts the five properties from the
+[threat model](docs/THREAT_MODEL.md) — no field value transmitted, every
+verified span replaced, unscanned imagery redacted, failures increasing
+redaction rather than reducing it, and no query string leaving the client.
+These decide whether the system is *safe*; everything else measures whether it
+is *accurate*.
+
+CI runs them on every push, alongside a bundle check (a content script with ES
+imports is a broken extension) and a 95% precision floor on the synthetic
+corpus.
+
 ## Evaluation
 
 ```bash
@@ -203,6 +221,7 @@ Add screenshots by dropping `--no-screenshots` (needs `playwright install chromi
 | [docs/RELEASING.md](docs/RELEASING.md) | Versioning and release conventions |
 | [CHANGELOG.md](CHANGELOG.md) | Measured deltas per milestone |
 | [ner/README.md](ner/README.md) | The tagger, and why it is not shipped |
+| [.github/workflows/ci.yml](.github/workflows/ci.yml) | Tests, metrics floor, repository hygiene |
 
 Start with the [threat model](docs/THREAT_MODEL.md) if you are evaluating this
 as a privacy control, and [metrics](docs/METRICS.md) if you are evaluating the

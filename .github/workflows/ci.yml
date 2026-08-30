@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Invariants and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+
+      # MV3 content scripts are classic scripts and cannot use ES imports, so a
+      # broken bundle means a broken extension. Failing here is the point.
+      - name: Build extension
+        run: npm run build
+
+      - name: Bundle must contain no bare ES imports
+        run: |
+          if grep -qE '^\s*(import|export)\s' extension/dist/content.js; then
+            echo "::error::bundled content script contains ES module syntax"
+            exit 1
+          fi
+          node --check extension/dist/content.js
+
+      - name: Unit tests
+        run: node --test tests/pii.test.mjs
+
+      # The five privacy invariants from docs/THREAT_MODEL.md. These decide
+      # whether the system is safe, not merely accurate.
+      - name: Privacy invariants
+        run: node --test tests/invariants.test.mjs
+
+  evaluate:
+    name: Detection metrics
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22', cache: npm }
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: npm ci
+      - run: pip install faker
+
+      - name: Generate synthetic corpus
+        run: python datagen/generate.py --n 120 --no-screenshots --out datagen/out
+
+      - name: Score
+        run: |
+          node eval/detect.mjs datagen/out/manifest.jsonl eval/out/predictions.jsonl
+          python eval/score.py datagen/out/manifest.jsonl eval/out/predictions.jsonl --mode block | tee eval/out/report.txt
+
+      # A drop below this means a real regression. The threshold is deliberately
+      # a floor, not the current figure, so ordinary variation does not fail CI.
+      - name: Enforce precision floor
+        run: |
+          PREC=$(grep -oE 'precision +[0-9.]+' eval/out/report.txt | head -1 | grep -oE '[0-9.]+')
+          echo "synthetic precision: ${PREC}%"
+          awk -v p="$PREC" 'BEGIN { exit (p >= 95.0) ? 0 : 1 }' || {
+            echo "::error::precision ${PREC}% is below the 95% floor"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: eval/out/report.txt
+
+  no-trace:
+    name: Repository hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: Assets that must not be committed
+        run: |
+          if git ls-files | grep -qE 'extension/vendor/|node_modules/|\.onnx\.data$'; then
+            echo "::error::build artefacts committed to the repository"; exit 1
+          fi
+          test -f extension/models/yunet_face.onnx || { echo "::error::model missing"; exit 1; }

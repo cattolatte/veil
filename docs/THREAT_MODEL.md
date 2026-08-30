@@ -92,5 +92,11 @@ These are the properties worth testing on every change:
 4. A failure in any detection path increases redaction; it never decreases it.
 5. The server's independent audit finds no raw PII in inbound context.
 
-Invariants 1, 2 and 5 are asserted in the end-to-end test. **3 and 4 are not
-yet automated** — currently verified by inspection, which is a gap.
+**All five are automated** in `tests/invariants.test.mjs` and enforced on every
+push and pull request. Invariants 3 and 4 were previously verified only by
+inspection — which is how three fail-open defects reached `main`.
+
+Writing them down as tests immediately found a fourth. `visualViewport?.width`
+appears safe, but optional chaining does **not** guard an *undeclared* binding:
+it throws `ReferenceError`. On any browser without `visualViewport`, the whole
+scan would abort and redact nothing. Every global is now read off `globalThis`.
