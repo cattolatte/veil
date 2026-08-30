@@ -1,14 +1,35 @@
+<div align="center">
+
 # Veil
 
-**Privacy-preserving on-device visual perception for browser agents.**
+**Privacy-preserving on-device visual perception for browser agents**
 
-A local vision model reads the screen, sensitive content is detected and
-redacted **before any network request**, and only anonymised structure reaches
-the server — which returns an action the client executes.
+A local model reads the screen and redacts sensitive content *before any network request*.
+Only anonymised structure reaches the server — which returns an action the client executes.
 
-> Smart India Hackathon 2026 · Problem Statement `SIH26171` · ISRO / Department of Space
+[**Live demo**](https://cattolatte.github.io/veil/) · [Architecture](docs/ARCHITECTURE.md) · [Threat model](docs/THREAT_MODEL.md) · [Decisions](docs/adr/README.md) · [Metrics](docs/METRICS.md)
+
+[![CI](https://github.com/cattolatte/veil/actions/workflows/ci.yml/badge.svg)](https://github.com/cattolatte/veil/actions/workflows/ci.yml)
+[![Deploy demo](https://github.com/cattolatte/veil/actions/workflows/pages.yml/badge.svg)](https://github.com/cattolatte/veil/actions/workflows/pages.yml)
+![Tests](https://img.shields.io/badge/tests-15%20passing-4ade80)
+![Invariants](https://img.shields.io/badge/privacy%20invariants-5%2F5-4ade80)
+![Latency](https://img.shields.io/badge/capture-8.9%20ms-818cf8)
+![Heap](https://img.shields.io/badge/heap-3.1%20MB-818cf8)
+
+<sub>Smart India Hackathon 2026 · Problem Statement <code>SIH26171</code> · ISRO / Department of Space</sub>
+
+</div>
 
 ---
+
+> **What the server actually receives**, from a page carrying real identifiers:
+>
+> ```
+> Aadhaar [[AADHAAR]] · PAN [[PAN]] · IFSC [[IFSC]] · UPI [[UPI]]
+> Email [[EMAIL]] · Mobile [[PHONE]]
+> Order ref ORDER-100000000000 · Ticket 1234 5678 9012     ← decoys, correctly untouched
+> password → {"filled": true, "length": 7}                  ← never the value
+> ```
 
 ## The problem
 
@@ -110,6 +131,23 @@ including model load, warm 134 ms, heap 9.9 MB, zero fallbacks to `unscanned`.
 
 ---
 
+## Demo
+
+**Live: https://cattolatte.github.io/veil/**
+
+Only `demo/` is published; the rest of the repository stays private. To run it
+locally:
+
+```bash
+npm install && npm run build      # also stages demo/veil-test.js
+cd demo && python3 -m http.server 8799
+```
+
+Open `http://127.0.0.1:8799/index.html` and press **Run agent**. The left panel
+is a real page full of genuine identifiers; the right panel is everything that
+crossed the network. No server or extension install required. Script and
+talking points in [docs/DEMO.md](docs/DEMO.md).
+
 ## Known limitations
 
 Stated plainly, because a judge will ask. Fuller treatment in the
@@ -134,24 +172,6 @@ Stated plainly, because a judge will ask. Fuller treatment in the
 
 ---
 
-## Layout
-
-```
-extension/          browser extension (Chrome MV3 + Firefox)
-  src/lib/          detection, redaction, serialisation, perf, DOM, browser shim
-  src/vision/       YuNet pre/post-processing and the inference engine
-  src/content.js    runs in page — the only component that sees raw data
-  src/background.js service worker — bridges client and server
-  models/           yunet_face.onnx (227 KB)
-server/             FastAPI — sanitised-context contract, leak audit, policy
-datagen/            synthetic generator · real-page harvester · shared patterns
-eval/               three scoring harnesses
-ner/                experimental byte-level tagger (not in the pipeline)
-docs/adr/           architecture decision records
-```
-
----
-
 ## Running it
 
 ```bash
@@ -168,23 +188,6 @@ Load the extension:
 - **Firefox** — `about:debugging` → *Load Temporary Add-on* → `extension/manifest.firefox.json`
 
 ---
-
-## Demo
-
-**Live: https://cattolatte.github.io/veil/**
-
-Only `demo/` is published; the rest of the repository stays private. To run it
-locally:
-
-```bash
-npm install && npm run build      # also stages demo/veil-test.js
-cd demo && python3 -m http.server 8799
-```
-
-Open `http://127.0.0.1:8799/index.html` and press **Run agent**. The left panel
-is a real page full of genuine identifiers; the right panel is everything that
-crossed the network. No server or extension install required. Script and
-talking points in [docs/DEMO.md](docs/DEMO.md).
 
 ## Tests
 
@@ -222,6 +225,24 @@ python eval/score.py datagen/harvest_out/manifest.jsonl eval/out/harvest-preds.j
 ```
 
 Add screenshots by dropping `--no-screenshots` (needs `playwright install chromium`).
+
+---
+
+## Layout
+
+```
+extension/          browser extension (Chrome MV3 + Firefox)
+  src/lib/          detection, redaction, serialisation, perf, DOM, browser shim
+  src/vision/       YuNet pre/post-processing and the inference engine
+  src/content.js    runs in page — the only component that sees raw data
+  src/background.js service worker — bridges client and server
+  models/           yunet_face.onnx (227 KB)
+server/             FastAPI — sanitised-context contract, leak audit, policy
+datagen/            synthetic generator · real-page harvester · shared patterns
+eval/               three scoring harnesses
+ner/                experimental byte-level tagger (not in the pipeline)
+docs/adr/           architecture decision records
+```
 
 ---
 
