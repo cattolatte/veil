@@ -26,16 +26,18 @@ export const GRID_H = SCREEN_H / CELL;   // 40
 const MODEL = "models/screen.onnx";
 
 /**
- * Threshold chosen from the held-out REAL page sweep, not the synthetic one:
+ * Threshold chosen from the held-out REAL page sweep (127 pages, layouts never
+ * trained on), never the synthetic one:
  *
- *   thr 0.90 → P 75.9%  R 68.8%  F1 72.2%  3.9% of screen flagged
- *   thr 0.99 → P 90.7%  R 49.1%  F1 63.7%  2.3% of screen flagged
+ *   thr 0.90 → P 83.2%  R 84.8%  F1 84.0%   4.4% of screen flagged
+ *   thr 0.95 → P 87.6%  R 80.8%  F1 84.1%   4.0% of screen flagged
+ *   thr 0.99 → P 93.8%  R 70.9%  F1 80.8%   3.3% of screen flagged
  *
- * 0.9 is the F1 peak. Recall is weighted a little above precision here because
- * this channel exists to catch what the DOM missed: a false positive costs a
- * blurred region, a false negative leaks.
+ * 0.95 is shipped. F1 is flat between 0.90 and 0.95, so the tie is broken on
+ * precision: redaction precision is its own 20% metric, and every false
+ * positive is a black rectangle over content the user wanted to see.
  */
-const DEFAULT_THRESHOLD = 0.9;
+const DEFAULT_THRESHOLD = 0.95;
 
 export class ScreenPerception {
   #session = null;

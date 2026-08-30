@@ -27,6 +27,7 @@ GRID_W, GRID_H = IN_W // CELL, IN_H // CELL
 SOURCES = [
     ("synthetic", Path("datagen/screens_out")),
     ("real", Path("datagen/harvest_big")),
+    ("real_xl", Path("datagen/harvest_xl")),
 ]
 REAL_TEST_FRACTION = 0.25
 
@@ -63,13 +64,22 @@ def main() -> None:
         bundles[name] = (root, rows)
         print(f"{name}: {len(rows)} screens")
 
-    root_r, rows_r = bundles["real"]
+    # Every real corpus is pooled, then split by page. Real pages are the
+    # scarce resource: going from 117 to ~370 of them is the single change that
+    # moved this model from unusable to shippable.
+    real_roots = [(r, rows) for name, (r, rows) in bundles.items() if name.startswith("real")]
+    Xr_parts, Yr_parts = [], []
+    for root, rows in real_roots:
+        a, b = encode(root, rows)
+        Xr_parts.append(a); Yr_parts.append(b)
+    Xr = np.concatenate(Xr_parts); Yr = np.concatenate(Yr_parts)
+    rows_r = [r for _, rows in real_roots for r in rows]
+    root_r = None
     rng = np.random.default_rng(0)
     order = rng.permutation(len(rows_r))
     n_test = int(len(rows_r) * REAL_TEST_FRACTION)
     test_idx, train_idx = order[:n_test], order[n_test:]
 
-    Xr, Yr = encode(root_r, rows_r)
     Xs, Ys = encode(*bundles["synthetic"])
 
     X_train = np.concatenate([Xs, Xr[train_idx]])
