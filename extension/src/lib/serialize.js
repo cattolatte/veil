@@ -153,9 +153,13 @@ export function buildContext({ maxElements = 120 } = {}) {
     // Separator matters: gluing the label directly onto the value destroys the
     // \b word boundary the patterns rely on.
     const prefix = prevTail ? prevTail.slice(-48) + " " : "";
+    // A match can straddle the boundary — begin in the prefix and end inside
+    // this block. Discarding those would leave the tail transmitted in the
+    // clear, so they are CLAMPED into range instead: the overlapping portion
+    // is still redacted. Fail closed (ADR-003).
     const spans = scanText(prefix + raw)
-      .filter((s) => s.start >= prefix.length)
-      .map((s) => ({ ...s, start: s.start - prefix.length, end: s.end - prefix.length }));
+      .filter((s) => s.end > prefix.length)
+      .map((s) => ({ ...s, start: Math.max(0, s.start - prefix.length), end: s.end - prefix.length }));
     prevTail = raw;
     if (spans.length) {
       stats.redactedSpans += spans.length;
