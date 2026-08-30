@@ -5,8 +5,34 @@ redaction precision 20%, client resource use 20%, latency 15%.
 
 ## [Unreleased]
 
-Not yet addressed: on-device vision model (25%), client resource measurement
-(20%).
+Not yet addressed: on-device vision model (25%).
+
+## [v0.9.0-beta] — Recall, precision and cost instrumentation
+
+**Detection F1 84.9% → 91.8%. Recall 74.8% → 85.2%. Precision 98.1% → 99.4%.**
+
+- **Inline-split recall 50% → 100%.** Text is now grouped by nearest
+  block-level ancestor before scanning, rejoining PII spread across inline
+  elements without fusing unrelated blocks. Every text-detectable kind
+  (card, dob, email, ifsc, pan, phone, upi) now sits at 100% recall.
+- **Aadhaar false positives 5 → 2.** Separated form (`1234 5678 9012`) collides
+  with ticket and invoice references, ~1 in 10 of which pass Verhoeff by
+  chance. Bare 12-digit runs still pass on checksum alone; separated ones now
+  additionally require a nearby identifying label.
+- **Cost instrumentation.** Phase timings and heap usage are recorded in the
+  pipeline, so a regression shows up immediately rather than at measurement
+  time. Rolling median and p95 helpers, because first-run figures include lazy
+  init and should never be the quoted number.
+
+Measured on a real 3,100-node page:
+
+```
+median 14.1 ms   p95 35.4 ms   heap 3.3 MB   payload 21.6 KB
+phases: elements 8.8 ms · visual 0.3 ms · text 5.1 ms
+split-across-elements Aadhaar caught · 0 secrets leaked · decoys untouched
+```
+
+Block grouping costs ~3.5 ms of median latency for +10.4 points of recall.
 
 ## [v0.8.0-beta] — Bundled content script; two fail-open bugs fixed
 

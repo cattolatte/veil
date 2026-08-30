@@ -5,11 +5,13 @@
  *
  *   joined   - strip all tags, scan one concatenated string. Optimistic: PII
  *              split across inline elements gets silently rejoined.
- *   pernode  - scan each text node separately. This is what content.js actually
- *              does (TreeWalker over SHOW_TEXT), so it is the honest number.
+ *   pernode  - scan each text node separately. The naive baseline.
+ *   block    - group text fragments by their nearest block-level ancestor,
+ *              which is what content.js now does. Rejoins inline fragments
+ *              without fusing unrelated blocks.
  *
- * Reporting both quantifies exactly how much recall the split-across-elements
- * case costs, instead of hiding it behind a friendlier preprocessing step.
+ * Reporting all three quantifies what the split-across-elements case costs and
+ * what grouping recovers, instead of hiding it behind friendlier preprocessing.
  *
  *   node eval/detect.mjs datagen/out/manifest.jsonl eval/out/predictions.jsonl
  */
@@ -24,6 +26,21 @@ if (!inPath || !outPath) {
 }
 
 const STRIP = /<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi;
+
+const BLOCK_BREAK = /<\/?(?:p|div|li|tr|td|th|h[1-6]|section|article|header|footer|nav|aside|form|fieldset|table|ul|ol|dl|dt|dd|blockquote|pre|main|figure|figcaption|canvas|br)\b[^>]*>/gi;
+
+/**
+ * Text grouped by block boundary, mirroring blockAncestor() in serialize.js.
+ * Inline tags are dropped so fragments rejoin; block tags split the stream.
+ */
+function textBlocks(html) {
+  return html
+    .replace(STRIP, "")
+    .replace(BLOCK_BREAK, "\u0000")
+    .split("\u0000")
+    .map((seg) => seg.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim())
+    .filter((seg) => seg.length >= 3);
+}
 
 /** Text nodes, in document order, mirroring the TreeWalker in content.js. */
 function textNodes(html) {
@@ -57,7 +74,7 @@ function attrValues(html) {
 
 const lines = readFileSync(inPath, "utf8").trim().split("\n");
 const preds = [];
-let tJoined = 0, tPerNode = 0;
+let tJoined = 0, tPerNode = 0, tBlock = 0;
 
 for (const line of lines) {
   const page = JSON.parse(line);
@@ -78,7 +95,14 @@ for (const line of lines) {
   }
   tPerNode += performance.now() - t0;
 
-  preds.push({ id: page.id, joined, perNode });
+  t0 = performance.now();
+  const block = [];
+  for (const chunk of [...textBlocks(page.html), ...attrs]) {
+    for (const s of scanText(chunk)) block.push({ kind: s.kind, text: chunk.slice(s.start, s.end) });
+  }
+  tBlock += performance.now() - t0;
+
+  preds.push({ id: page.id, joined, perNode, block });
 }
 
 mkdirSync(dirname(outPath), { recursive: true });
@@ -86,5 +110,6 @@ writeFileSync(outPath, preds.map((p) => JSON.stringify(p)).join("\n"), "utf8");
 console.log(
   `scanned ${preds.length} pages -> ${outPath}\n` +
   `  joined  ${tJoined.toFixed(1)} ms total, ${(tJoined / preds.length).toFixed(2)} ms/page\n` +
-  `  pernode ${tPerNode.toFixed(1)} ms total, ${(tPerNode / preds.length).toFixed(2)} ms/page`
+  `  pernode ${tPerNode.toFixed(1)} ms total, ${(tPerNode / preds.length).toFixed(2)} ms/page\n` +
+  `  block   ${tBlock.toFixed(1)} ms total, ${(tBlock / preds.length).toFixed(2)} ms/page`
 );

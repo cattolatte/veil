@@ -53,12 +53,23 @@ export function isValidLuhn(digits) {
 
 // ---------------------------------------------------------------- patterns
 
+/** Labels that identify an Aadhaar number in surrounding text. */
+const AADHAAR_CONTEXT = /(aadhaar|aadhar|uidai|\buid\b|आधार)/i;
+
 const PATTERNS = [
   {
     kind: "aadhaar",
     severity: Severity.CRITICAL,
     re: /\b[2-9]\d{3}[\s-]?\d{4}[\s-]?\d{4}\b/g,
-    verify: (m) => isValidAadhaar(m.replace(/[\s-]/g, "")),
+    // Separated form (`1234 5678 9012`) collides with ticket numbers, invoice
+    // refs and grouped digits generally, and roughly 1 in 10 of those pass
+    // Verhoeff by chance. Bare 12-digit runs are accepted on the checksum
+    // alone; separated ones additionally need a nearby identifying label.
+    verify: (m, ctx) => {
+      if (!isValidAadhaar(m.replace(/[\s-]/g, ""))) return false;
+      if (!/[\s-]/.test(m)) return true;
+      return AADHAAR_CONTEXT.test(ctx.before.slice(-40));
+    },
   },
   {
     kind: "card",
@@ -130,7 +141,7 @@ export function scanText(text) {
     let m;
     while ((m = p.re.exec(text)) !== null) {
       const raw = m[0];
-      const ctx = { before: text.slice(Math.max(0, m.index - 1), m.index), after: text.slice(m.index + raw.length) };
+      const ctx = { before: text.slice(Math.max(0, m.index - 48), m.index), after: text.slice(m.index + raw.length) };
       if (p.verify && !p.verify(raw, ctx)) continue;
       found.push({ kind: p.kind, severity: p.severity, start: m.index, end: m.index + raw.length, length: raw.length, source: "textual" });
     }

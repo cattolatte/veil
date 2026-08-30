@@ -8,6 +8,7 @@
 
 import { classifyElement, scanText, Severity } from "./pii.js";
 import { redactText, describeFieldState, placeholderFor } from "./redact.js";
+import { Budget } from "./perf.js";
 
 const INTERACTIVE = "a,button,input,select,textarea,[role=button],[role=link],[role=textbox],[contenteditable=true]";
 const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "SVG", "HEAD"]);
@@ -43,6 +44,21 @@ function visible(el, vp) {
   return s.visibility !== "hidden" && s.display !== "none" && s.opacity !== "0";
 }
 
+const INLINE_TAGS = new Set([
+  "A","ABBR","B","BDI","BDO","CITE","CODE","DATA","DFN","EM","I","KBD","MARK",
+  "Q","RP","RT","RUBY","S","SAMP","SMALL","SPAN","STRONG","SUB","SUP","TIME",
+  "U","VAR","WBR","LABEL","FONT","INS","DEL",
+]);
+
+/** Nearest block-level ancestor, used to group text fragments for scanning. */
+function blockAncestor(el) {
+  let cur = el;
+  while (cur && cur !== document.body && INLINE_TAGS.has(cur.tagName)) {
+    cur = cur.parentElement;
+  }
+  return cur || document.body;
+}
+
 function rect(el) {
   const r = el.getBoundingClientRect();
   return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) };
@@ -57,7 +73,7 @@ function safeLabel(raw) {
 }
 
 export function buildContext({ maxElements = 120 } = {}) {
-  const t0 = performance.now();
+  const budget = new Budget();
   const vp = viewportSize();
   const stats = { scanned: 0, redactedElements: 0, redactedSpans: 0, byKind: {} };
   const bump = (k, n = 1) => { stats.byKind[k] = (stats.byKind[k] || 0) + n; };
@@ -106,6 +122,8 @@ export function buildContext({ maxElements = 120 } = {}) {
     elements.push(entry);
   }
 
+  budget.mark("elements");
+
   // Images and canvases are handed to the vision pass rather than described,
   // since only pixels can tell whether a face is present.
   for (const el of document.querySelectorAll("img,video,canvas")) {
@@ -113,14 +131,34 @@ export function buildContext({ maxElements = 120 } = {}) {
     visualCandidates.push({ tag: el.tagName.toLowerCase(), box: rect(el), alt: safeLabel(el.getAttribute("alt")) });
   }
 
-  // Page text, redacted span-wise.
+  budget.mark("visualCandidates");
+
+  // Page text, grouped by block ancestor, then redacted span-wise.
+  //
+  // Scanning each text node in isolation misses PII split across inline
+  // elements - `<span><em>2341</em><em>23412346</em></span>` yields two nodes,
+  // neither of which matches. Measured cost of the naive approach: half the
+  // recall on affected instances. Grouping by nearest block-level ancestor
+  // rejoins inline fragments while still keeping unrelated blocks apart, so
+  // adjacent-but-unrelated numbers do not fuse into a false match.
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  const chunks = [];
-  let node, budget = 8000;
-  while ((node = walker.nextNode()) && budget > 0) {
+  const groups = new Map();
+  let node;
+  while ((node = walker.nextNode())) {
     const parent = node.parentElement;
     if (!parent || SKIP_TAGS.has(parent.tagName)) continue;
     const raw = node.nodeValue.trim();
+    if (!raw) continue;
+    const block = blockAncestor(parent);
+    if (!groups.has(block)) groups.set(block, []);
+    groups.get(block).push(raw);
+  }
+
+  const chunks = [];
+  let textBudget = 8000;
+  for (const parts of groups.values()) {
+    if (textBudget <= 0) break;
+    const raw = parts.join(" ");
     if (raw.length < 3) continue;
     const spans = scanText(raw);
     if (spans.length) {
@@ -129,8 +167,11 @@ export function buildContext({ maxElements = 120 } = {}) {
     }
     const { text } = redactText(raw, spans);
     chunks.push(text);
-    budget -= text.length;
+    textBudget -= text.length;
   }
+
+  budget.mark("text");
+  const cost = budget.finish();
 
   return {
     schema: "veil/1",
@@ -142,6 +183,7 @@ export function buildContext({ maxElements = 120 } = {}) {
     text: chunks.join(" ").slice(0, 8000),
     redactionScheme: "typed-placeholder/[[KIND]]",
     stats,
-    buildMs: +(performance.now() - t0).toFixed(1),
+    cost,
+    buildMs: cost.totalMs,
   };
 }
