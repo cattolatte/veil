@@ -66,6 +66,18 @@ const AADHAAR_CONTEXT = /(aadhaar|aadhar|uidai|\buid\b|आधार)/i;
 const ID_CONTEXT =
   /(driver'?s?\s*licen[cs]e|licen[cs]e\s*(no|num|#)|social\s*(security\s*)?(number|num)?|ssn|passport|id\s*card|\bid\b\s*[:#]|applicant|account\s*(no|num|#)|employee\s*id|registration\s*(no|num))\s*[:#-]?\s*$/i;
 
+/**
+ * A date is only PII when something says it is a birth date.
+ *
+ * Learned the hard way: bare date patterns matched every historical date in
+ * an encyclopedia article - 257 false positives on five real pages, dropping
+ * precision from 99.4% to 7.1%. On form-shaped corpora the same patterns
+ * score 93% recall, because there every date IS personal. Real prose is
+ * mostly dates about the world, not about a person.
+ */
+const DOB_CONTEXT =
+  /(date\s*of\s*birth|\bd\.?o\.?b\.?\b|\bborn\b|birth\s*(day|date)?|janm|जन्म)[^.]{0,40}$/i;
+
 const MONTHS = "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t)?(?:ember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?";
 
 const PATTERNS = [
@@ -108,19 +120,25 @@ const PATTERNS = [
       !/\d/.test(ctx.after[0] || "") &&
       !ID_CONTEXT.test(ctx.before),
   },
-  { kind: "dob",   severity: Severity.MEDIUM, re: /\b(?:0?[1-9]|[12]\d|3[01])[\/\-.](?:0?[1-9]|1[0-2])[\/\-.](?:19|20)\d{2}\b/g },
+  { kind: "dob", severity: Severity.MEDIUM,
+    re: /\b(?:0?[1-9]|[12]\d|3[01])[\/\-.](?:0?[1-9]|1[0-2])[\/\-.](?:19|20)\d{2}\b/g,
+    verify: (m, ctx) => DOB_CONTEXT.test(ctx.before) },
   // ISO, optionally with a time component: 1977-04-07, 1977-04-07T00:00:00
   { kind: "dob", severity: Severity.MEDIUM,
-    re: /\b(?:19|20)\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])(?:T\d{2}:\d{2}(?::\d{2})?)?\b/g },
+    re: /\b(?:19|20)\d{2}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])(?:T\d{2}:\d{2}(?::\d{2})?)?\b/g,
+    verify: (m, ctx) => DOB_CONTEXT.test(ctx.before) },
   // 17th February 1946 · 5 May 1966
   { kind: "dob", severity: Severity.MEDIUM,
-    re: new RegExp(`\\b\\d{1,2}(?:st|nd|rd|th)?\\s+(?:${MONTHS})\\.?,?\\s+(?:19|20)\\d{2}\\b`, "gi") },
+    re: new RegExp(`\\b\\d{1,2}(?:st|nd|rd|th)?\\s+(?:${MONTHS})\\.?,?\\s+(?:19|20)\\d{2}\\b`, "gi"),
+    verify: (m, ctx) => DOB_CONTEXT.test(ctx.before) },
   // May 5th, 1966 · October 18 1980
   { kind: "dob", severity: Severity.MEDIUM,
-    re: new RegExp(`\\b(?:${MONTHS})\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?,?\\s+(?:19|20)\\d{2}\\b`, "gi") },
+    re: new RegExp(`\\b(?:${MONTHS})\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?,?\\s+(?:19|20)\\d{2}\\b`, "gi"),
+    verify: (m, ctx) => DOB_CONTEXT.test(ctx.before) },
   // January/88 — month with a two-digit year
   { kind: "dob", severity: Severity.MEDIUM,
-    re: new RegExp(`\\b(?:${MONTHS})\\/\\d{2}\\b`, "gi") },
+    re: new RegExp(`\\b(?:${MONTHS})\\/\\d{2}\\b`, "gi"),
+    verify: (m, ctx) => DOB_CONTEXT.test(ctx.before) },
   // Labelled government or account identifier. Alphanumeric, because real
   // passport and licence numbers mix letters and digits (VDO631913G). The
   // label is required, so a bare token is never swept up on shape alone -

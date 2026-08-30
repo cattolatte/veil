@@ -36,3 +36,6 @@ datagen/external/
 
 # onnxruntime assets, staged by npm run build
 extension/vendor/
+
+# harvested pages (re-runnable)
+datagen/harvest_out/
