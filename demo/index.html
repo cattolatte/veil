@@ -1,0 +1,142 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Veil — live demo</title>
+<style>
+  :root { --bg:#0f1117; --panel:#171a23; --line:#262b38; --ink:#e6e9ef; --dim:#8b93a7;
+          --safe:#3ddc97; --danger:#ff6b6b; --accent:#6ea8fe; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font:14px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif; }
+  header { padding:20px 28px; border-bottom:1px solid var(--line);
+           display:flex; align-items:baseline; gap:16px; flex-wrap:wrap; }
+  h1 { font-size:18px; margin:0; letter-spacing:-.01em; }
+  .ps { color:var(--dim); font-size:13px; }
+  .bar { padding:14px 28px; border-bottom:1px solid var(--line);
+         display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  button { background:var(--accent); color:#0b0d12; border:0; padding:9px 16px;
+           border-radius:6px; font:600 13px/1 inherit; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--ink); border:1px solid var(--line); }
+  button:disabled { opacity:.5; cursor:default; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line); }
+  @media (max-width:900px){ .grid{ grid-template-columns:1fr; } }
+  section { background:var(--panel); padding:22px 26px; }
+  h2 { font-size:12px; text-transform:uppercase; letter-spacing:.09em;
+       margin:0 0 4px; color:var(--dim); font-weight:600; }
+  .sub { color:var(--dim); font-size:12px; margin:0 0 18px; }
+  .left h2 { color:var(--danger); } .right h2 { color:var(--safe); }
+  .rec { border:1px solid var(--line); border-radius:8px; padding:4px 16px; background:#12141c; }
+  .row { display:flex; gap:10px; padding:7px 0; border-bottom:1px solid #1e2230; }
+  .row:last-child { border:0; }
+  .k { color:var(--dim); width:118px; flex:none; font-size:13px; }
+  .v { font-family:ui-monospace,Menlo,monospace; font-size:13px; word-break:break-all; }
+  label { display:block; margin:12px 0; }
+  label span { display:block; color:var(--dim); font-size:12px; margin-bottom:4px; }
+  input { width:100%; padding:8px 10px; background:#0d0f16; border:1px solid var(--line);
+          border-radius:6px; color:var(--ink); font:13px ui-monospace,Menlo,monospace; }
+  pre { margin:0; font-family:ui-monospace,Menlo,monospace; font-size:12.5px;
+        white-space:pre-wrap; word-break:break-word; color:var(--ink); }
+  .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(108px,1fr));
+             gap:1px; background:var(--line); border:1px solid var(--line);
+             border-radius:8px; overflow:hidden; margin-top:18px; }
+  .m { background:#12141c; padding:12px 14px; }
+  .m .n { font:600 19px/1.2 ui-monospace,Menlo,monospace; }
+  .m .l { color:var(--dim); font-size:11px; margin-top:3px; }
+  .ok { color:var(--safe); } .bad { color:var(--danger); }
+  .verdict { margin-top:18px; padding:12px 14px; border-radius:8px;
+             font-weight:600; border:1px solid; font-size:13px; }
+  .verdict.pass { border-color:var(--safe); color:var(--safe); background:#3ddc9712; }
+  .verdict.fail { border-color:var(--danger); color:var(--danger); background:#ff6b6b12; }
+  mark { background:#3ddc9722; color:var(--safe); padding:0 2px; border-radius:3px; }
+</style>
+
+<header>
+  <h1>Veil</h1>
+  <span class="ps">On-device visual perception for browser agents · SIH26171 · ISRO</span>
+</header>
+
+<div class="bar">
+  <button id="run">Run agent</button>
+  <button id="reset" class="ghost">Reset</button>
+  <span id="status" class="ps">Ready.</span>
+</div>
+
+<div class="grid">
+  <section class="left">
+    <h2>What is on the screen</h2>
+    <p class="sub">A real page. Everything below is genuine sensitive data.</p>
+    <div class="rec">
+      <div class="row"><div class="k">Account holder</div><div class="v">Ramesh Kumar</div></div>
+      <div class="row"><div class="k">Aadhaar</div><div class="v"><span><em>2341</em><em>23412346</em></span></div></div>
+      <div class="row"><div class="k">PAN</div><div class="v">ABCPE1234K</div></div>
+      <div class="row"><div class="k">IFSC</div><div class="v">HDFC0001234</div></div>
+      <div class="row"><div class="k">UPI</div><div class="v">ramesh@oksbi</div></div>
+      <div class="row"><div class="k">Email</div><div class="v">ramesh.kumar@example.org</div></div>
+      <div class="row"><div class="k">Mobile</div><div class="v">9845012345</div></div>
+      <div class="row"><div class="k">Order ref</div><div class="v">ORDER-100000000000</div></div>
+      <div class="row"><div class="k">Ticket</div><div class="v">1234 5678 9012</div></div>
+    </div>
+    <form onsubmit="return false">
+      <label><span>Describe your issue</span><input id="issue" placeholder="What went wrong?"></label>
+      <label><span>Account password</span><input type="password" id="pw" value="hunter2"></label>
+      <label><span>Card number</span><input id="cc" autocomplete="cc-number" value="4539578763621486"></label>
+    </form>
+    <button id="submit" class="ghost">Submit request</button>
+  </section>
+
+  <section class="right">
+    <h2>What the server receives</h2>
+    <p class="sub">Everything that crosses the network. Nothing else leaves this machine.</p>
+    <pre id="payload">Press “Run agent”.</pre>
+    <div class="metrics" id="metrics"></div>
+    <div id="verdict"></div>
+  </section>
+</div>
+
+<script src="veil-test.js"></script>
+<script>
+const SECRETS = ["234123412346","2341 23412346","ABCPE1234K","HDFC0001234",
+                 "ramesh@oksbi","ramesh.kumar@example.org","9845012345",
+                 "hunter2","4539578763621486"];
+const DECOYS = ["ORDER-100000000000","1234 5678 9012"];
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const m = (n,l,c="") => `<div class="m"><div class="n ${c}">${n}</div><div class="l">${l}</div></div>`;
+
+$("run").onclick = async () => {
+  $("run").disabled = true; $("status").textContent = "Capturing…";
+  try {
+    const t0 = performance.now();
+    const ctx = await VeilTest.capture();
+    const ms = performance.now() - t0;
+    const blob = JSON.stringify(ctx);
+
+    const leaked = SECRETS.filter(s => blob.includes(s));
+    const kept = DECOYS.filter(d => blob.includes(d));
+    const pw = ctx.elements.find(e => e.sensitive === "password");
+
+    const body = "text sent to server:\n" + ctx.text.slice(0,400) +
+      "\n\npassword field as transmitted:\n" + JSON.stringify(pw?.state ?? null) +
+      "\n\nurl: " + ctx.url;
+    $("payload").innerHTML = esc(body).replace(/\[\[[A-Z_]+\]\]/g, x => `<mark>${x}</mark>`);
+
+    $("metrics").innerHTML =
+      m(ms.toFixed(1)+" ms","capture latency") +
+      m(ctx.stats.redactedSpans + ctx.stats.redactedElements,"items redacted") +
+      m(leaked.length,"secrets leaked", leaked.length ? "bad" : "ok") +
+      m(kept.length+"/2","decoys preserved", kept.length===2 ? "ok" : "bad") +
+      m((blob.length/1024).toFixed(1)+" KB","payload size") +
+      m(ctx.cost?.heapUsedBytes ? (ctx.cost.heapUsedBytes/1048576).toFixed(1)+" MB" : "n/a","heap");
+
+    const pass = leaked.length === 0 && kept.length === 2;
+    $("verdict").className = "verdict " + (pass ? "pass" : "fail");
+    $("verdict").textContent = pass
+      ? "✓ Every identifier masked. Both decoys preserved. Password never transmitted."
+      : "✗ LEAK: " + leaked.join(", ");
+    $("status").textContent = "Done in " + ms.toFixed(1) + " ms.";
+  } catch (e) {
+    $("status").textContent = "Error: " + e.message;
+  }
+  $("run").disabled = false;
+};
+$("reset").onclick = () => location.reload();
+</script>
