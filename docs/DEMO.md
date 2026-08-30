@@ -6,8 +6,7 @@ showing both sides at once.
 ## Setup (before the panel arrives)
 
 ```bash
-npm install && npm run build
-cp extension/dist/veil-test.js demo/
+npm install && npm run build      # also stages demo/veil-test.js
 cd demo && python3 -m http.server 8799
 ```
 

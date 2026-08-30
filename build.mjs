@@ -70,5 +70,10 @@ if (watch) {
       console.warn(`  ! missing ${f} — run npm install`);
     });
   }
-  console.log(`built -> ${OUT}  (+ ${ORT_ASSETS.length} runtime assets -> extension/vendor)`);
+  // The demo loads the same bundle. Copied on every build rather than
+  // committed: a stale demo bundle would show behaviour the code no longer
+  // has, which is the one failure mode a demo cannot survive.
+  await cp(`${OUT}/veil-test.js`, "demo/veil-test.js");
+
+  console.log(`built -> ${OUT}  (+ ${ORT_ASSETS.length} runtime assets, + demo bundle)`);
 }
