@@ -25,7 +25,7 @@ gain is worth.
 Train a purpose-built tagger, and **do not wire it into the pipeline yet**.
 
 Architecture: byte-level dilated CNN, dilations 1/2/4/8/16, receptive field
-±63 bytes. **100,169 parameters, 18 KB ONNX**, 82 s to train, byte-level F1
+±63 bytes. **100,169 parameters, 403 KB ONNX**, 82 s to train, byte-level F1
 **91.0%**.
 
 - **Byte level** — no tokenizer to ship or keep in sync with the browser, any
@@ -57,5 +57,11 @@ train with negative examples from real prose, which the harvester already
 produces — real pages where everything except planted values is known-`O`.
 Mixing at roughly 1:1 should collapse false positives while preserving recall.
 
-18 KB versus 278 MB means the resource budget is not the constraint. Data
+403 KB versus 278 MB means the resource budget is not the constraint. Data
 distribution is.
+
+**Correction.** This ADR first reported 18 KB. That was the graph file only —
+torch's exporter had written the weights to a `.onnx.data` sidecar, and the
+self-contained model is 403 KB. Caught by a CI hygiene check that flagged the
+sidecar as a committed build artefact. The argument is unchanged; the number
+was wrong.
