@@ -28,6 +28,7 @@ SOURCES = [
     ("synthetic", Path("datagen/screens_out")),
     ("real", Path("datagen/harvest_big")),
     ("real_xl", Path("datagen/harvest_xl")),
+    ("real_2k", Path("datagen/harvest_2k")),
 ]
 REAL_TEST_FRACTION = 0.25
 

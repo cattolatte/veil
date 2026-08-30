@@ -68,7 +68,7 @@ The rubric is published, and it is **not** an accuracy competition:
 
 | Weight | Criterion | Status |
 |:--:|---|---|
-| 25% | Visual context accuracy | **Screen model: F1 84.1% on 127 held-out real pages** + face detection |
+| 25% | Visual context accuracy | **Screen model: F1 90.1% on 910 held-out real pages** + face detection |
 | 20% | PII detection recall & precision | **100% precision, 92.5% text recall** on real pages |
 | 20% | Redaction precision | **100%** on real pages |
 | 20% | Client resource utilisation | **3.1 MB** heap text-only, 9.9 MB with vision |
@@ -153,8 +153,8 @@ talking points in [docs/DEMO.md](docs/DEMO.md).
 Stated plainly, because a judge will ask. Fuller treatment in the
 [threat model](docs/THREAT_MODEL.md) and [metrics](docs/METRICS.md).
 
-- **Screen-model precision is 87.6%** on held-out real pages, so about one in
-  eight masked regions did not need masking. It flags 4.0% of the screen.
+- **Screen-model precision is 92.8%** on held-out real pages, so about one in
+  fourteen masked regions did not need masking. It flags 3.7% of the screen.
 - **The recall ceiling is ~36.5%** on general PII. Names, addresses and cities
   have no pattern to match. The neural tagger exists but
   [over-fires on prose](docs/adr/009-neural-tagger-not-shipped.md) and is not

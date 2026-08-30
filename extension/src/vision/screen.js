@@ -26,16 +26,17 @@ export const GRID_H = SCREEN_H / CELL;   // 40
 const MODEL = "models/screen.onnx";
 
 /**
- * Threshold chosen from the held-out REAL page sweep (127 pages, layouts never
- * trained on), never the synthetic one:
+ * Threshold chosen from the held-out REAL page sweep — 910 pages whose layouts
+ * were never trained on — and never from a synthetic split:
  *
- *   thr 0.90 → P 83.2%  R 84.8%  F1 84.0%   4.4% of screen flagged
- *   thr 0.95 → P 87.6%  R 80.8%  F1 84.1%   4.0% of screen flagged
- *   thr 0.99 → P 93.8%  R 70.9%  F1 80.8%   3.3% of screen flagged
+ *   thr 0.70 → P 82.8%  R 92.9%  F1 87.6%   4.4% of screen flagged
+ *   thr 0.90 → P 90.1%  R 89.8%  F1 89.9%   3.9% of screen flagged
+ *   thr 0.95 → P 92.8%  R 87.5%  F1 90.1%   3.7% of screen flagged
+ *   thr 0.99 → P 96.3%  R 80.5%  F1 87.7%   3.3% of screen flagged
  *
- * 0.95 is shipped. F1 is flat between 0.90 and 0.95, so the tie is broken on
- * precision: redaction precision is its own 20% metric, and every false
- * positive is a black rectangle over content the user wanted to see.
+ * 0.95 is shipped: the F1 peak, and it happens to favour precision, which is
+ * its own 20% metric. Every false positive is a black rectangle over content
+ * the user wanted to see.
  */
 const DEFAULT_THRESHOLD = 0.95;
 
