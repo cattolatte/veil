@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  body { font: 13px system-ui, sans-serif; width: 320px; margin: 0; padding: 12px; }
+  h1 { font-size: 14px; margin: 0 0 8px; }
+  input, button { font: inherit; width: 100%; box-sizing: border-box; }
+  input { padding: 6px; margin-bottom: 6px; }
+  button { padding: 7px; cursor: pointer; }
+  label { display: flex; gap: 6px; align-items: center; margin: 8px 0; }
+  label input { width: auto; margin: 0; }
+  pre { background: #f4f4f5; padding: 8px; border-radius: 4px; max-height: 260px;
+        overflow: auto; white-space: pre-wrap; word-break: break-word; margin: 8px 0 0; }
+</style>
+<h1>Veil</h1>
+<input id="goal" placeholder="What should the agent do?" value="Summarise this page">
+<label><input type="checkbox" id="debug" checked> Show redaction overlay</label>
+<button id="run">Run</button>
+<pre id="out">Ready.</pre>
+<script src="popup.js" type="module"></script>
