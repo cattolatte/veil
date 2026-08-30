@@ -112,7 +112,8 @@ including model load, warm 134 ms, heap 9.9 MB, zero fallbacks to `unscanned`.
 
 ## Known limitations
 
-Stated plainly, because a judge will ask.
+Stated plainly, because a judge will ask. Fuller treatment in the
+[threat model](docs/THREAT_MODEL.md) and [metrics](docs/METRICS.md).
 
 - **Canvas text is not detected.** YuNet finds faces, not rendered identifiers.
   Those regions are masked wholesale by the fail-closed path.
@@ -194,8 +195,15 @@ Add screenshots by dropping `--no-screenshots` (needs `playwright install chromi
 | Document | Contents |
 |---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Trust boundary, detection passes, budgets |
-| [docs/DATA.md](docs/DATA.md) | Corpus strategy, public dataset survey, the Indian-PII gap |
+| [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) | Assets, threats in and out of scope, residual risks, invariants |
+| [docs/METRICS.md](docs/METRICS.md) | What counts as a detection, exclusions, environment, seeds |
+| [docs/MODEL_CARDS.md](docs/MODEL_CARDS.md) | Both models: intended use, measured performance, failure modes |
+| [docs/DATA.md](docs/DATA.md) | Provenance and licensing, corpus strategy, the Indian-PII gap |
 | [docs/adr/](docs/adr/README.md) | Nine architecture decision records |
 | [docs/RELEASING.md](docs/RELEASING.md) | Versioning and release conventions |
 | [CHANGELOG.md](CHANGELOG.md) | Measured deltas per milestone |
 | [ner/README.md](ner/README.md) | The tagger, and why it is not shipped |
+
+Start with the [threat model](docs/THREAT_MODEL.md) if you are evaluating this
+as a privacy control, and [metrics](docs/METRICS.md) if you are evaluating the
+numbers.
