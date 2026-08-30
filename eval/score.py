@@ -47,12 +47,12 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("manifest", type=Path)
     ap.add_argument("predictions", type=Path)
-    ap.add_argument("--mode", choices=["joined", "perNode", "both"], default="both")
+    ap.add_argument("--mode", choices=["joined", "perNode", "block", "all"], default="all")
     args = ap.parse_args()
 
     truth_by_id = {m["id"]: m for m in load(args.manifest)}
     preds = load(args.predictions)
-    modes = ["joined", "perNode"] if args.mode == "both" else [args.mode]
+    modes = ["perNode", "block", "joined"] if args.mode == "all" else [args.mode]
 
     for mode in modes:
         tp_k: Counter[str] = Counter()
