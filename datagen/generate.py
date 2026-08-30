@@ -25,7 +25,6 @@ import string
 from pathlib import Path
 
 from faker import Faker
-from playwright.sync_api import sync_playwright
 
 from pii_patterns import luhn_digit, verhoeff_digit
 
@@ -167,11 +166,33 @@ def main() -> None:
     ap.add_argument("--out", type=Path, default=Path(__file__).parent / "out")
     ap.add_argument("--width", type=int, default=1280)
     ap.add_argument("--height", type=int, default=900)
+    ap.add_argument(
+        "--no-screenshots", action="store_true",
+        help="Skip Playwright entirely. Produces HTML and textual ground truth "
+             "but no pixel boxes. Lets the detection/redaction eval run with no "
+             "browser install.",
+    )
     args = ap.parse_args()
+
+    args.out.mkdir(parents=True, exist_ok=True)
+    manifest = []
+
+    if args.no_screenshots:
+        for i in range(args.n):
+            html, truth = build_page(i)
+            for t in truth:
+                t["box"] = None
+            manifest.append({
+                "id": i, "screenshot": None, "html": html, "pii": truth,
+                "viewport": {"w": args.width, "h": args.height},
+            })
+        _write(args.out, manifest)
+        return
+
+    from playwright.sync_api import sync_playwright
 
     shots = args.out / "screens"
     shots.mkdir(parents=True, exist_ok=True)
-    manifest = []
 
     with sync_playwright() as p:
         browser = p.chromium.launch()
@@ -200,11 +221,15 @@ def main() -> None:
             })
         browser.close()
 
-    (args.out / "manifest.jsonl").write_text(
+    _write(args.out, manifest)
+
+
+def _write(out: Path, manifest: list[dict]) -> None:
+    (out / "manifest.jsonl").write_text(
         "\n".join(json.dumps(m, ensure_ascii=False) for m in manifest), encoding="utf-8"
     )
     total = sum(len(m["pii"]) for m in manifest)
-    print(f"wrote {len(manifest)} screens, {total} labelled PII instances -> {args.out}")
+    print(f"wrote {len(manifest)} pages, {total} labelled PII instances -> {out}")
 
 
 if __name__ == "__main__":
