@@ -16,7 +16,7 @@ A model is the only way past that ceiling.
 |---|---|
 | Architecture | Dilated CNN, byte-level, receptive field ±63 bytes |
 | Parameters | **100,169** |
-| ONNX size | **18 KB** |
+| ONNX size | **403 KB** self-contained |
 | Training | 82 s on Apple GPU, 84,777 windows from ai4privacy |
 | Byte-level F1 | **91.0%** (P 86.7% / R 95.8%) |
 
@@ -29,7 +29,7 @@ Runtime's WebGPU backend and run in parallel across the sequence, while an LSTM
 steps serially and often falls back to WASM. Latency is 15% of the score.
 
 For comparison, the off-the-shelf option `onnx-community/multilang-pii-ner`
-is **278 MB** quantised — 15,000× larger. With 20% of the rubric on client
+is **278 MB** quantised — 690× larger. With 20% of the rubric on client
 resource use, shipping it would lose more marks than the accuracy gains.
 
 ## Why it is not wired in
@@ -68,5 +68,5 @@ pipeline.
 ```bash
 python ner/prepare.py     # ai4privacy -> byte-level BIO windows
 python ner/train.py       # ~82 s on Apple GPU
-python ner/export.py      # -> ner/out/pii_tagger.onnx (18 KB)
+python ner/export.py      # -> ner/out/pii_tagger.onnx (403 KB)
 ```

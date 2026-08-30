@@ -52,7 +52,7 @@ is redacted wholesale rather than transmitted ([ADR-003](adr/003-fail-closed.md)
 | | |
 |---|---|
 | File | `ner/out/pii_tagger.onnx` (gitignored; rebuild with `ner/export.py`) |
-| Size | **18 KB** · 100,169 parameters |
+| Size | **403 KB** self-contained · 100,169 parameters |
 | Architecture | Byte-level dilated CNN — embed(256→64), 5 residual blocks at dilations 1/2/4/8/16, 1×1 head |
 | Receptive field | ±63 bytes |
 | Training data | ai4privacy/pii-masking-300k validation split — 47,728 documents, 6 languages |

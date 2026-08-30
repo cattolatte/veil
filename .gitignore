@@ -43,3 +43,4 @@ datagen/harvest_out/
 # ner training artefacts
 ner/data/
 ner/out/*.pt
+ner/out/

@@ -26,8 +26,18 @@ torch.onnx.export(
     dynamic_axes={"chars": {0: "batch", 1: "len"}, "logits": {0: "batch", 1: "len"}},
     opset_version=17,
 )
+# torch's exporter may write weights to a .onnx.data sidecar, leaving a
+# deceptively small graph file. Collapse it back to one self-contained file so
+# the reported size is the size that actually has to ship.
+import onnx
+m = onnx.load(str(out / "pii_tagger.onnx"))
+onnx.save_model(m, str(out / "pii_tagger.onnx"), save_as_external_data=False)
+sidecar = out / "pii_tagger.onnx.data"
+if sidecar.exists():
+    sidecar.unlink()
+
 size = (out / "pii_tagger.onnx").stat().st_size
-print(f"onnx: {size/1024:.0f} KB")
+print(f"onnx: {size/1024:.0f} KB (self-contained)")
 
 # Verify parity between torch and onnxruntime, then show it on real text.
 import onnxruntime as ort

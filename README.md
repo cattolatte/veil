@@ -55,7 +55,7 @@ The rubric is published, and it is **not** an accuracy competition:
 
 **35% of the score is resource use and latency.** That single fact drives every
 significant decision: a 227 KB face detector instead of a 2 GB model
-([ADR-005](docs/adr/005-small-vision-model.md)), an 18 KB tagger instead of a
+([ADR-005](docs/adr/005-small-vision-model.md)), a 403 KB tagger instead of a
 278 MB one ([ADR-009](docs/adr/009-neural-tagger-not-shipped.md)), and a
 latency budget that fails closed rather than blocking
 ([ADR-003](docs/adr/003-fail-closed.md)).
