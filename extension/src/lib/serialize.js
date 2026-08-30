@@ -9,40 +9,7 @@
 import { classifyElement, scanText, Severity } from "./pii.js";
 import { redactText, describeFieldState, placeholderFor } from "./redact.js";
 import { Budget } from "./perf.js";
-
-const INTERACTIVE = "a,button,input,select,textarea,[role=button],[role=link],[role=textbox],[contenteditable=true]";
-const SKIP_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "SVG", "HEAD"]);
-
-/**
- * Viewport size, with fallbacks.
- *
- * `innerWidth`/`innerHeight` report 0 in several real situations: a background
- * or hidden tab, an offscreen render, some headless contexts, and very early in
- * document load. Returns null when no trustworthy size is available.
- */
-function viewportSize() {
-  const cands = [
-    [window.innerWidth, window.innerHeight],
-    [visualViewport?.width, visualViewport?.height],
-    [document.documentElement?.clientWidth, document.documentElement?.clientHeight],
-    [document.body?.clientWidth, document.body?.clientHeight],
-  ];
-  for (const [w, h] of cands) if (w > 0 && h > 0) return { w, h };
-  return null;
-}
-
-function visible(el, vp) {
-  const r = el.getBoundingClientRect();
-  if (r.width < 2 || r.height < 2) return false;
-  // Cull offscreen elements ONLY when the viewport size is known. With an
-  // unknown viewport this test rejects everything, the element scan returns
-  // nothing, and nothing is marked sensitive - the scan would fail OPEN.
-  // Scanning extra offscreen elements is merely wasteful; missing them is a
-  // privacy failure, so when in doubt, scan.
-  if (vp && (r.bottom < 0 || r.top > vp.h || r.right < 0 || r.left > vp.w)) return false;
-  const s = getComputedStyle(el);
-  return s.visibility !== "hidden" && s.display !== "none" && s.opacity !== "0";
-}
+import { INTERACTIVE, SKIP_TAGS, interactiveElements, viewportSize, visibleRect, boxOf } from "./dom.js";
 
 const INLINE_TAGS = new Set([
   "A","ABBR","B","BDI","BDO","CITE","CODE","DATA","DFN","EM","I","KBD","MARK",
@@ -57,11 +24,6 @@ function blockAncestor(el) {
     cur = cur.parentElement;
   }
   return cur || document.body;
-}
-
-function rect(el) {
-  const r = el.getBoundingClientRect();
-  return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) };
 }
 
 /** Redact a user-visible label before it is used as an element's description. */
@@ -89,10 +51,13 @@ export function buildContext({ maxElements = 120 } = {}) {
   // action back with querySelectorAll(INTERACTIVE)[action.index]. Using a
   // count of visible elements instead would shift every index and click the
   // wrong control.
-  const all = document.querySelectorAll(INTERACTIVE);
+  const all = interactiveElements();
   for (let idx = 0; idx < all.length; idx++) {
     const el = all[idx];
-    if (SKIP_TAGS.has(el.tagName) || !visible(el, vp)) continue;
+    if (SKIP_TAGS.has(el.tagName)) continue;
+    // visibleRect returns the measured rect, so it is not measured again below.
+    const r = visibleRect(el, vp);
+    if (!r) continue;
     stats.scanned++;
 
     const cls = classifyElement(el);
@@ -107,7 +72,7 @@ export function buildContext({ maxElements = 120 } = {}) {
       type: el.getAttribute("type") || null,
       role: el.getAttribute("role") || null,
       label: safeLabel(el.getAttribute("aria-label") || el.placeholder || el.innerText || el.value && "" || ""),
-      box: rect(el),
+      box: boxOf(r),
     };
 
     if (isSensitive) {
@@ -127,8 +92,9 @@ export function buildContext({ maxElements = 120 } = {}) {
   // Images and canvases are handed to the vision pass rather than described,
   // since only pixels can tell whether a face is present.
   for (const el of document.querySelectorAll("img,video,canvas")) {
-    if (!visible(el, vp)) continue;
-    visualCandidates.push({ tag: el.tagName.toLowerCase(), box: rect(el), alt: safeLabel(el.getAttribute("alt")) });
+    const r = visibleRect(el, vp);
+    if (!r) continue;
+    visualCandidates.push({ tag: el.tagName.toLowerCase(), box: boxOf(r), alt: safeLabel(el.getAttribute("alt")) });
   }
 
   budget.mark("visualCandidates");

@@ -5,6 +5,8 @@
 import { buildContext } from "./lib/serialize.js";
 import { boxesFromRegions } from "./lib/redact.js";
 import { VisionEngine } from "./vision/engine.js";
+import { interactiveElements } from "./lib/dom.js";
+import { api } from "./lib/browser.js";
 
 const vision = new VisionEngine();
 let overlay = null;
@@ -44,22 +46,42 @@ async function capture({ debug = false } = {}) {
   return context;
 }
 
-/** Execute a server-returned action. */
+/**
+ * Set a value the way a user would, so framework-controlled inputs notice.
+ *
+ * React and friends install a value setter on the element and track the last
+ * value they wrote. Assigning `el.value` directly bypasses that tracker, so
+ * the framework re-renders the old value straight back and the typing appears
+ * to do nothing. Calling the *prototype* setter updates the underlying value
+ * where the tracker can see it.
+ */
+function setValue(el, value) {
+  const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+  if (setter) setter.call(el, value); else el.value = value;
+  el.dispatchEvent(new Event("input", { bubbles: true }));
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+/**
+ * Execute a server-returned action.
+ *
+ * The element is resolved from the SAME query serialize.js indexed against —
+ * imported, not retyped — because a drifted copy would shift every index and
+ * click the wrong control.
+ */
 function execute(action) {
-  const el = document.querySelectorAll(
-    "a,button,input,select,textarea,[role=button],[role=link],[role=textbox],[contenteditable=true]"
-  )[action.index];
+  const el = interactiveElements()[action.index];
   switch (action.type) {
     case "click":  el?.click(); return !!el;
-    case "type":   if (!el) return false; el.focus(); el.value = action.text ?? ""; 
-                   el.dispatchEvent(new Event("input", { bubbles: true })); return true;
+    case "type":   if (!el) return false; el.focus(); setValue(el, action.text ?? ""); return true;
     case "scroll": scrollBy({ top: action.dy ?? 400, behavior: "smooth" }); return true;
     case "noop":   return true;
     default:       return false;
   }
 }
 
-chrome.runtime.onMessage.addListener((msg, _sender, respond) => {
+api.runtime.onMessage.addListener((msg, _sender, respond) => {
   if (msg.cmd === "capture") { capture(msg).then(respond); return true; }
   if (msg.cmd === "execute") { respond({ ok: execute(msg.action) }); return true; }
 });

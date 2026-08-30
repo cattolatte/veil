@@ -5,7 +5,42 @@ redaction precision 20%, client resource use 20%, latency 15%.
 
 ## [Unreleased]
 
-Not yet addressed: on-device vision model (25%).
+Not yet addressed: on-device vision model (25%). Corpus is still 60 synthetic
+pages with no screenshots and no real-world layout.
+
+## [v0.10.0-beta] — Robustness and performance
+
+**Warm median 14.1 ms → 8.9 ms. First run 35.4 ms → 22.3 ms. Element phase
+8.8 ms → 5.7 ms.** Detection unchanged at F1 91.8%.
+
+Six defects fixed:
+
+- **Duplicated element selector.** `INTERACTIVE` was defined in serialize.js
+  and retyped in content.js. Any drift would shift every index and click the
+  wrong control, silently. Both now import one shared constant.
+- **Tainted-canvas crash.** `getImageData` throws SecurityError on a canvas
+  holding cross-origin content, which aborted the redaction pass and let the
+  frame through unmasked. Every failure path now falls back to a blackout.
+- **Popup hung forever** on browser-internal pages, where no content script
+  exists. The rejection never reached `respond()`. Now caught and reported.
+- **Unbounded server fetch.** A dead server hung the popup instead of
+  reporting a number, on a metric worth 15%. Now aborts at 8 s, with an
+  overall 30 s ceiling.
+- **Framework-controlled inputs ignored typing.** Assigning `el.value`
+  bypasses React's value tracker, so it re-renders the old value straight
+  back. Now uses the prototype setter and fires input + change.
+- **Firefox API mismatch.** Callback-style `chrome.*` is unreliable there;
+  everything goes through a promise-based shim.
+
+Two optimisations:
+
+- `getBoundingClientRect` was computed twice per element — once to test
+  visibility, again to record the box. Now measured once and passed through.
+- `Element.checkVisibility()` replaces `getComputedStyle()` where available;
+  the engine answers it from internal state.
+
+Note on methodology: the earlier 14.1 ms median included cold runs. The
+directly comparable figure is first-run, 35.4 ms → 22.3 ms.
 
 ## [v0.9.0-beta] — Recall, precision and cost instrumentation
 
