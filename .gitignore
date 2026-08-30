@@ -47,3 +47,10 @@ ner/out/
 
 # demo bundle, staged by npm run build
 demo/veil-test.js
+
+# vision training artefacts
+vision/data/
+vision/out/
+datagen/screens_out/
+datagen/harvest_big/
+datagen/harvest_shots/

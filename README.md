@@ -68,7 +68,7 @@ The rubric is published, and it is **not** an accuracy competition:
 
 | Weight | Criterion | Status |
 |:--:|---|---|
-| 25% | Visual context accuracy | Face detection working; canvas text not yet |
+| 25% | Visual context accuracy | **Screen model: F1 72.2% on held-out real pages** + face detection |
 | 20% | PII detection recall & precision | **100% precision, 92.5% text recall** on real pages |
 | 20% | Redaction precision | **100%** on real pages |
 | 20% | Client resource utilisation | **3.1 MB** heap text-only, 9.9 MB with vision |
@@ -153,8 +153,10 @@ talking points in [docs/DEMO.md](docs/DEMO.md).
 Stated plainly, because a judge will ask. Fuller treatment in the
 [threat model](docs/THREAT_MODEL.md) and [metrics](docs/METRICS.md).
 
-- **Canvas text is not detected.** YuNet finds faces, not rendered identifiers.
-  Those regions are masked wholesale by the fail-closed path.
+- **Screen-model precision is 75.9%** on held-out real pages, so roughly a
+  quarter of masked regions did not need masking. Recall is deliberately
+  weighted higher: a false positive costs a blacked rectangle, a false negative
+  leaks.
 - **The recall ceiling is ~36.5%** on general PII. Names, addresses and cities
   have no pattern to match. The neural tagger exists but
   [over-fires on prose](docs/adr/009-neural-tagger-not-shipped.md) and is not
@@ -260,6 +262,7 @@ docs/adr/           architecture decision records
 | [CHANGELOG.md](CHANGELOG.md) | Measured deltas per milestone |
 | [docs/DEMO.md](docs/DEMO.md) | Two-minute demo script, and answers to the obvious questions |
 | [docs/ONE_PAGER.md](docs/ONE_PAGER.md) | The whole project on one page |
+| [vision/](vision/) | Screen-perception model: training, export, real-page evaluation |
 | [ner/README.md](ner/README.md) | The tagger, and why it is not shipped |
 | [.github/workflows/ci.yml](.github/workflows/ci.yml) | Tests, metrics floor, repository hygiene |
 

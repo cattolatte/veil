@@ -38,6 +38,14 @@ jobs:
       - name: Privacy invariants
         run: node --test tests/invariants.test.mjs
 
+      # A planner that can name any element index, or type into a password
+      # field, is one that can be talked into leaking. The guarantee must not
+      # depend on the model behaving.
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: LLM action-validation guards
+        run: python server/test_llm.py
+
   evaluate:
     name: Detection metrics
     runs-on: ubuntu-latest
@@ -83,4 +91,5 @@ jobs:
           if git ls-files | grep -qE 'extension/vendor/|node_modules/|\.onnx\.data$|demo/veil-test\.js'; then
             echo "::error::build artefacts committed to the repository"; exit 1
           fi
-          test -f extension/models/yunet_face.onnx || { echo "::error::model missing"; exit 1; }
+          test -f extension/models/yunet_face.onnx || { echo "::error::face model missing"; exit 1; }
+          test -f extension/models/screen.onnx || { echo "::error::screen model missing"; exit 1; }

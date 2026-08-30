@@ -16,3 +16,5 @@ that held.
 | [007](007-block-ancestor-grouping.md) | Group text by block ancestor before scanning | Accepted |
 | [008](008-bundle-content-script.md) | Bundle the content script to a classic IIFE | Accepted |
 | [009](009-neural-tagger-not-shipped.md) | Build the neural tagger, do not ship it yet | Accepted |
+| [010](010-screen-perception.md) | A screen-perception model, trained on real pages | Accepted |
+| [011](011-llm-planner.md) | An LLM/VLM plans; validation decides what is allowed | Accepted |
