@@ -30,3 +30,6 @@ eval/out/
 # build output
 extension/dist/
 node_modules/
+
+# external corpora (large, re-downloadable)
+datagen/external/
