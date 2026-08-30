@@ -26,3 +26,7 @@ datagen/out/
 
 # generated eval output
 eval/out/
+
+# build output
+extension/dist/
+node_modules/

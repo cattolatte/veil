@@ -6,8 +6,36 @@ redaction precision 20%, client resource use 20%, latency 15%.
 ## [Unreleased]
 
 Not yet addressed: on-device vision model (25%), client resource measurement
-(20%), latency measurement (15%). The extension has not yet been run in a real
-browser.
+(20%).
+
+## [v0.8.0-beta] — Bundled content script; two fail-open bugs fixed
+
+First execution in a real browser. Three defects found, all of which would
+have survived to the finale:
+
+- **MV3 content scripts cannot use ES module `import`.** They are classic
+  scripts, so `content.js` failed at parse time and the extension never ran.
+  Now bundled to a single IIFE with esbuild.
+- **Viewport culling failed open.** `innerWidth`/`innerHeight` report 0 in
+  hidden tabs, offscreen renders and early load. Every element was then judged
+  offscreen, the element scan returned nothing, and nothing was marked
+  sensitive. Culling is now skipped when viewport size is unknown.
+- **The element cap failed open.** The scan broke out at `maxElements`, so a
+  password field later in a long document was never classified. On a real page
+  that meant 120 of 803 elements examined. All elements are now classified;
+  only non-sensitive descriptors are capped.
+
+**Measured on a real 3,097-node page, 803 interactive elements:**
+
+```
+median latency   10.6 ms
+payload          21.5 KB
+scanned          775 / 803   (28 not visible)
+secrets leaked   0
+index mismatches 0
+```
+
+Detection unchanged: precision 98.1%, recall 74.8%, F1 84.9%.
 
 ## [v0.6.0-beta] — Evaluation harness and data strategy
 
