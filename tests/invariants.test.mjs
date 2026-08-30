@@ -116,3 +116,22 @@ test("canvas masking fails closed on a tainted canvas", async () => {
   assert.equal(painted.length, 1, "a tainted canvas must still be masked");
   assert.deepEqual(painted[0], { x: 5, y: 5, w: 50, h: 50 });
 });
+
+test("a PII match straddling a block boundary is redacted, not dropped", async () => {
+  // Labels and values sit in sibling blocks, so the scanner prepends the
+  // previous block's tail as context. A match that begins in that prefix and
+  // ends inside the block must still be masked: discarding it would leave the
+  // tail in the clear, which is a fail-open.
+  const { scanText } = await import("../extension/src/lib/pii.js");
+  const { redactText } = await import("../extension/src/lib/redact.js");
+
+  const prefix = "Aadhaar 2341 2341 ";
+  const raw = "2346 reference";
+  const spans = scanText(prefix + raw)
+    .filter((s) => s.end > prefix.length)
+    .map((s) => ({ ...s, start: Math.max(0, s.start - prefix.length), end: s.end - prefix.length }));
+
+  const { text } = redactText(raw, spans);
+  assert.ok(!text.includes("2346"), `straddling tail survived redaction: ${text}`);
+  assert.ok(text.includes("[[AADHAAR]]"));
+});
