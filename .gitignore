@@ -1,0 +1,25 @@
+.DS_Store
+*.log
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# node
+node_modules/
+dist/
+build/
+
+# models and generated data
+models/*.onnx
+models/*.bin
+datagen/out/
+*.pt
+*.safetensors
+
+# env
+.env
+.env.*
