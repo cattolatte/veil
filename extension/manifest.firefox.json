@@ -37,5 +37,17 @@
       "id": "veil@sih26171",
       "strict_min_version": "121.0"
     }
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "dist/*",
+        "models/*",
+        "vendor/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
 }

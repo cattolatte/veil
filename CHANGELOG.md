@@ -5,8 +5,60 @@ redaction precision 20%, client resource use 20%, latency 15%.
 
 ## [Unreleased]
 
-Not yet addressed: on-device vision model (25%). Corpus is still 60 synthetic
-pages with no screenshots and no real-world layout.
+Corpus is still 60 synthetic pages with no screenshots and no real-world
+layout. The real-page harvester is the remaining gap.
+
+## [v0.12.0-beta] — End-to-end loop and on-device face detection
+
+**First complete task, and the first working vision pass.**
+
+### End to end
+
+Capture → sanitise → server → action → executed, against the live FastAPI
+server on a real page:
+
+```
+field before: ""
+field after:  "my card was declined"
+task succeeded: true      secrets in payload: 0
+capture 12.1 ms · server 18.8 ms · total 33 ms
+```
+
+Safety behaviour verified in the same loop: asked to fill a password, the
+server refuses and the field stays empty. Asked to click by label, it resolves
+the right control. What the server actually receives:
+
+```
+Aadhaar [[AADHAAR]] · PAN [[PAN]] · IFSC [[IFSC]]
+Registered email [[EMAIL]], mobile [[PHONE]]
+Reference ORDER-100000000000 · ticket 1234 5678 9012
+```
+
+Every real identifier masked, both decoys untouched, password sent as
+`{filled: false, length: 0}`.
+
+### Vision — canvas recall is no longer structurally 0%
+
+YuNet (**227 KB**) wired in through ONNX Runtime Web on WebGPU. Chosen for
+size: with 20% of the score on resource use and 15% on latency, a small
+purpose-built detector beats a large general model. UGround-V1 was considered
+and rejected — 424 GB of gated training data for a model far too heavy to run
+in a browser.
+
+Detected **12 faces** across two test images in-browser, exactly matching an
+independent Python run of the same model (1 + 11). Cold 447 ms including model
+load, warm 134 ms, heap 9.9 MB, zero regions falling back to `unscanned`.
+
+Two defects found by running it:
+
+- ORT resolves its loader as a module specifier, so a relative `wasmPaths`
+  throws before any backend initialises. Must be an absolute URL.
+- The WebGPU build loads the `asyncify` runtime, not `jsep`. Shipping only
+  `jsep` fails with a misleading "no available backend found".
+
+Element references are now carried on visual candidates instead of recovering
+them with `elementFromPoint`, which picks the wrong node under overlap and
+shifts with scroll. They never leave the client.
 
 ## [v0.10.0-beta] — Robustness and performance
 
