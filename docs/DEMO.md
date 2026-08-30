@@ -3,7 +3,22 @@
 Two minutes, one screen, no narration required. The page proves the claim by
 showing both sides at once.
 
-## Setup (before the panel arrives)
+## Hosted
+
+The demo is published from `main` on every change:
+**https://cattolatte.github.io/veil/**
+
+Only `demo/` is deployed — the server, evaluation harnesses, training code and
+decision records stay in the private repository. The page is marked `noindex`
+and `robots.txt` disallows crawling, so it is reachable by link but not
+discoverable by search.
+
+**Be aware:** a GitHub Pages site is public even when the repository is
+private. The published bundle contains the detection logic. That is a
+deliberate trade — a link a panel can open beats a laptop they have to gather
+around — but it is a real one.
+
+## Local (no network, and the fallback if the hosted page is unreachable)
 
 ```bash
 npm install && npm run build      # also stages demo/veil-test.js

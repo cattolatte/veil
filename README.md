@@ -171,6 +171,11 @@ Load the extension:
 
 ## Demo
 
+**Live: https://cattolatte.github.io/veil/**
+
+Only `demo/` is published; the rest of the repository stays private. To run it
+locally:
+
 ```bash
 npm install && npm run build      # also stages demo/veil-test.js
 cd demo && python3 -m http.server 8799
