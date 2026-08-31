@@ -115,7 +115,12 @@ async function step(msg, tab, history) {
 }
 
 const MAX_STEPS = 8;
-const STALL_LIMIT = 2;
+// How many consecutive repeats of the same action before giving up. 1 means
+// the action is allowed to occur twice in a row and then stops - enough to
+// tolerate a page that genuinely needed the same click twice, not enough to
+// let a confused planner grind against a dead button.
+const STALL_LIMIT = 1;
+const SETTLE_MS = 350;
 
 /** Stable identity for an action, used to detect a stuck loop. */
 function signature(action) {
@@ -152,7 +157,10 @@ async function run(msg) {
   const steps = [];
   const history = [];
   let stalls = 0;
-  let stopReason = "limit";
+  // A single-step run that executes its action has finished, not run out of
+  // budget. Reporting "limit" there made every successful single-shot run show
+  // as a failure in the popup.
+  let stopReason = maxSteps === 1 ? "done" : "limit";
 
   for (let i = 0; i < maxSteps; i++) {
     const result = await step(msg, tab, history);
@@ -169,7 +177,9 @@ async function run(msg) {
       stopReason = "action failed";
       break;
     }
-    // Repeating an action, or producing no effect, means the agent is stuck.
+    // A repeated action means the agent is stuck. Alternating between two
+    // useless actions is not caught here and will run to the step limit -
+    // a known gap, bounded by MAX_STEPS.
     const prev = steps[steps.length - 2];
     if (prev && signature(prev.plan.action) === sig) {
       if (++stalls >= STALL_LIMIT) { stopReason = "stalled"; break; }
@@ -179,8 +189,9 @@ async function run(msg) {
 
     // Let the page settle before re-perceiving: a click may navigate or
     // re-render, and capturing mid-transition yields a context describing
-    // neither the old page nor the new one.
-    await new Promise((r) => setTimeout(r, 350));
+    // neither the old page nor the new one. Skipped on the final iteration,
+    // where there is nothing left to perceive.
+    if (i < maxSteps - 1) await new Promise((r) => setTimeout(r, SETTLE_MS));
   }
 
   const last = steps[steps.length - 1];

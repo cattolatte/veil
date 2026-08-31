@@ -52,6 +52,15 @@ jobs:
       - name: LLM action-validation guards
         run: python server/test_llm.py
 
+      # `choose_action` lost a parameter in a silent find-and-replace and
+      # shipped broken: every request on the DEFAULT path returned 500, while
+      # ten unit tests passed because they exercised validate() and never the
+      # endpoint.
+      - name: Server endpoint tests
+        run: |
+          pip install fastapi 'uvicorn[standard]' pydantic httpx
+          python server/test_api.py
+
   evaluate:
     name: Detection metrics
     runs-on: ubuntu-latest

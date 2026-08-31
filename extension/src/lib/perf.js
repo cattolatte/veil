@@ -41,26 +41,3 @@ export class Budget {
     };
   }
 }
-
-/**
- * Rolling window of recent runs, so the popup can show a median instead of a
- * single sample. A median is what should be quoted: first-run numbers include
- * lazy init and are not representative.
- */
-export class Rolling {
-  #vals = [];
-  constructor(size = 20) { this.size = size; }
-  push(v) { this.#vals.push(v); if (this.#vals.length > this.size) this.#vals.shift(); return this; }
-  get median() {
-    if (!this.#vals.length) return null;
-    const s = [...this.#vals].sort((a, b) => a - b);
-    const m = s.length >> 1;
-    return +(s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2).toFixed(2);
-  }
-  get p95() {
-    if (!this.#vals.length) return null;
-    const s = [...this.#vals].sort((a, b) => a - b);
-    return +s[Math.min(s.length - 1, Math.floor(s.length * 0.95))].toFixed(2);
-  }
-  get count() { return this.#vals.length; }
-}

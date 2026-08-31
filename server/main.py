@@ -26,6 +26,20 @@ app.add_middleware(
 
 PLACEHOLDER_RE = re.compile(r"\[\[[A-Z_]+\]\]")
 
+# Goals that name something the agent must never type on the user's behalf.
+SENSITIVE_GOAL_RE = re.compile(
+    r"\b(password|passwd|pwd|otp|pin|cvv|cvc|secret|token|"
+    r"card\s*number|aadhaar|aadhar|pan\b|passport|ssn)\b", re.I)
+
+# Bounds on inbound data. The client already truncates, but a server that
+# trusts its client is a server with an unbounded memory footprint - and this
+# one accepts a base64 screenshot, which is the easiest thing to get wrong.
+MAX_GOAL = 2_000
+MAX_TEXT = 32_000
+MAX_ELEMENTS = 500
+MAX_SCREENSHOT = 8_000_000        # ~6 MB decoded
+MAX_HISTORY = 32
+
 
 class Box(BaseModel):
     x: int; y: int; w: int; h: int
@@ -48,8 +62,8 @@ class Context(BaseModel):
     url: str
     title: str = ""
     viewport: dict[str, Any]
-    elements: list[Element]
-    text: str = ""
+    elements: list[Element] = Field(default_factory=list, max_length=MAX_ELEMENTS)
+    text: str = Field(default="", max_length=MAX_TEXT)
     visualRedactions: list[dict[str, Any]] = []
     redactionScheme: str
     stats: dict[str, Any]
@@ -63,15 +77,15 @@ class HistoryEntry(BaseModel):
 
 
 class ActRequest(BaseModel):
-    goal: str
+    goal: str = Field(max_length=MAX_GOAL)
     context: Context
     # What the agent has already done this run. Without it the planner has no
     # memory and will repeat its first action forever - the classic way an
     # agent loop looks busy while achieving nothing.
-    history: list[HistoryEntry] = []
+    history: list[HistoryEntry] = Field(default_factory=list, max_length=MAX_HISTORY)
     # Already redacted client-side: sensitive pixels were destroyed before
     # encoding, so this is safe to forward to a model.
-    screenshot: str | None = None
+    screenshot: str | None = Field(default=None, max_length=MAX_SCREENSHOT)
 
 
 class Action(BaseModel):
@@ -103,7 +117,7 @@ def audit_for_leaks(ctx: Context) -> list[str]:
     return sorted({kind for kind, _ in find_pii(blob)})
 
 
-def choose_action(goal: str, ctx: Context) -> Plan:
+def choose_action(goal: str, ctx: Context, history: list | None = None) -> Plan:
     """
     Baseline rule-based policy. Replaced by an open-weights VLM call, but kept
     as the fallback so the demo degrades instead of failing.
@@ -125,8 +139,17 @@ def choose_action(goal: str, ctx: Context) -> Plan:
     if "scroll" in g:
         return Plan(action=Action(type="scroll", dy=500), reason="Goal asks to scroll.", leaked=leaked)
 
-    # Fill: pick the first empty non-sensitive text field.
+    # A goal naming a sensitive field is refused outright, rather than falling
+    # through to "fill the first available field". Substituting a different
+    # target writes the goal text - which may contain the secret the user was
+    # trying to enter - into visible page content.
     if any(k in g for k in ("fill", "type", "enter", "search")):
+        if SENSITIVE_GOAL_RE.search(g):
+            return Plan(
+                action=None,
+                reason="Refusing: the goal names a sensitive field. The user must fill it.",
+                leaked=leaked,
+            )
         for e in ctx.elements:
             if e.tag in ("input", "textarea") and not e.sensitive:
                 if f"type{e.i}" in done:
