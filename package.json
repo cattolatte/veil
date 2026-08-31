@@ -7,7 +7,7 @@
     "build": "node build.mjs",
     "watch": "node build.mjs --watch",
     "eval": "node eval/detect.mjs datagen/out/manifest.jsonl eval/out/predictions.jsonl",
-    "test": "node --test tests/pii.test.mjs tests/invariants.test.mjs",
+    "test": "node --test tests/pii.test.mjs tests/invariants.test.mjs tests/wiring.test.mjs",
     "test:invariants": "node --test tests/invariants.test.mjs"
   },
   "devDependencies": {
