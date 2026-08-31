@@ -168,10 +168,11 @@ export function buildContext({ maxElements = 120, retainRawText = false } = {}) 
     }
     const { text } = redactText(raw, spans);
     chunks.push(text);
-    // Raw block text, retained ONLY when the neural pass is going to run over
-    // it. It is scanned in the content script and deleted before serialisation
-    // - it must never reach the payload.
-    if (retainRawText) rawChunks.push(raw);
+    // Raw block text AND the pattern spans already found in it, retained only
+    // when the neural pass will run. The neural pass must redact BOTH sets from
+    // the raw text in one go: rebuilding from raw with only its own spans would
+    // silently discard every pattern redaction.
+    if (retainRawText) rawChunks.push({ raw, spans });
     textBudget -= text.length;
   }
 

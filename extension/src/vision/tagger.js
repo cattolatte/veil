@@ -99,20 +99,21 @@ export class PiiTagger {
 
     // Byte offset at which each block starts within the joined string.
     const enc = new TextEncoder();
+    const sepLen = enc.encode(SEP).length;
+    // Byte length per block, computed once. The previous version re-encoded
+    // the block inside the span loop, making this O(spans x blockLength).
+    const lens = blocks.map((b) => enc.encode(b).length);
     const starts = [];
     let at = 0;
-    for (const b of blocks) {
-      starts.push(at);
-      at += enc.encode(b).length + enc.encode(SEP).length;
-    }
+    for (const len of lens) { starts.push(at); at += len + sepLen; }
 
     const perBlock = blocks.map(() => []);
+    // Spans arrive sorted, so the block cursor only moves forwards.
+    let bi = 0;
     for (const sp of spans) {
-      // Last block starting at or before this span.
-      let bi = 0;
       while (bi + 1 < starts.length && starts[bi + 1] <= sp.start) bi++;
       const off = starts[bi];
-      const end = off + enc.encode(blocks[bi]).length;
+      const end = off + lens[bi];
       if (sp.start >= end) continue;             // lands in a separator
       perBlock[bi].push({ ...sp, start: sp.start - off, end: Math.min(sp.end, end) - off });
     }
@@ -178,6 +179,25 @@ export class PiiTagger {
  * is worthless - the whole entity gets masked either way. Dropping it removes
  * the overlapping-span problem at source rather than repairing it afterwards.
  */
+/**
+ * Is this byte a UTF-8 continuation byte (10xxxxxx)?
+ *
+ * Span boundaries land wherever the model's per-byte tags happen to change,
+ * which for any multi-byte script is routinely mid-character. A span cut
+ * mid-character decodes to replacement characters, and — worse — the byte
+ * offset maps to a DIFFERENT string index than intended, so the redaction
+ * covers the wrong range. Measured on Devanagari: intended "प्रिया", produced
+ * "म प्". Part of a name could survive.
+ */
+const isContinuation = (b) => (b & 0xc0) === 0x80;
+
+/** Widen a span outwards to the nearest character boundaries. */
+function snapToCharBoundaries(span, bytes) {
+  while (span.start > 0 && isContinuation(bytes[span.start])) span.start--;
+  while (span.end < bytes.length && isContinuation(bytes[span.end])) span.end++;
+  return span;
+}
+
 export function decodeSpans(tags, bytes) {
   const cls = new Array(tags.length).fill(null);
   for (let i = 0; i < tags.length; i++) {
@@ -195,10 +215,13 @@ export function decodeSpans(tags, bytes) {
     i = j;
   }
 
-  const chr = (k) => String.fromCharCode(bytes[k]);
+  // ASCII-only word expansion. A byte >= 0x80 is part of a multi-byte
+  // character and is never a word boundary in the sense this test means.
+  const chr = (k) => (bytes[k] < 0x80 ? String.fromCharCode(bytes[k]) : "\u0000");
   for (const s of spans) {
     while (s.start > 0 && WORD.test(chr(s.start - 1))) s.start--;
     while (s.end < bytes.length && WORD.test(chr(s.end))) s.end++;
+    snapToCharBoundaries(s, bytes);
   }
 
   spans.sort((a, b) => a.start - b.start || b.end - a.end);
@@ -215,6 +238,7 @@ export function decodeSpans(tags, bytes) {
   }
 
   return merged
+    .map((s) => snapToCharBoundaries(s, bytes))   // merging can re-split a character
     .filter((s) => s.end - s.start >= MIN_SPAN)
     .map((s) => ({ kind: s.kind.toLowerCase(), start: s.start, end: s.end, source: "neural" }));
 }
