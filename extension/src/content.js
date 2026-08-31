@@ -7,8 +7,11 @@ import { boxesFromRegions } from "./lib/redact.js";
 import { VisionEngine } from "./vision/engine.js";
 import { interactiveElements } from "./lib/dom.js";
 import { api } from "./lib/browser.js";
+import { PiiTagger } from "./vision/tagger.js";
+import { redactText } from "./lib/redact.js";
 
 const vision = new VisionEngine();
+const tagger = new PiiTagger();
 let overlay = null;
 
 /** Debug overlay: draws what WOULD be redacted. Required to demonstrate redaction. */
@@ -35,9 +38,75 @@ function drawOverlay(context, regions) {
   setTimeout(() => overlay?.remove(), 4000);
 }
 
-async function capture({ debug = false } = {}) {
+/**
+ * Neural pass over the page text.
+ *
+ * The pattern layer cannot detect a name - there is no pattern - so it has a
+ * hard recall ceiling around 36.5% of PII types. This covers names, addresses,
+ * usernames and IPs.
+ *
+ * It runs over the RAW block text, retained non-enumerably by buildContext and
+ * deleted here before the context is returned. The raw text never leaves this
+ * function.
+ */
+async function applyNeuralPass(context) {
+  const raw = context.__rawChunks;
+  if (!raw?.length) return null;
+
   const t0 = performance.now();
-  const context = buildContext();
+  let added = 0;
+  const byKind = {};
+  const redacted = [];
+
+  const perBlock = await tagger.scanBlocks(raw);
+  for (let bi = 0; bi < raw.length; bi++) {
+    const block = raw[bi];
+    const spans = perBlock[bi];
+    if (!spans.length) { redacted.push(block); continue; }
+
+    // Byte offsets from the tagger, converted to string indices.
+    const bytes = new TextEncoder().encode(block);
+    const dec = new TextDecoder();
+    const mapped = spans.map((s) => ({
+      kind: s.kind,
+      start: dec.decode(bytes.subarray(0, s.start)).length,
+      end: dec.decode(bytes.subarray(0, s.end)).length,
+    })).sort((a, b) => a.start - b.start);
+
+    const { text } = redactText(block, mapped);
+    redacted.push(text);
+    added += mapped.length;
+    for (const m of mapped) byKind[m.kind] = (byKind[m.kind] || 0) + 1;
+  }
+
+  if (added) {
+    // Re-derive the transmitted text from the neurally-redacted blocks, so the
+    // pattern placeholders and the neural ones both survive.
+    context.text = redacted.join(" ").slice(0, 8000);
+    context.stats.redactedSpans += added;
+    for (const [k, v] of Object.entries(byKind)) {
+      context.stats.byKind[k] = (context.stats.byKind[k] || 0) + v;
+    }
+  }
+  return { added, byKind, ms: +(performance.now() - t0).toFixed(1), backend: tagger.backend };
+}
+
+async function capture({ debug = false, neural = false } = {}) {
+  const t0 = performance.now();
+  const context = buildContext({ retainRawText: neural });
+  // Neural pass first: it works on the raw text, which must be gone before
+  // anything is serialised.
+  if (neural) {
+    try {
+      context.neural = await applyNeuralPass(context);
+    } catch (e) {
+      // A failed neural pass loses coverage, never protection - the pattern
+      // layer has already redacted independently.
+      context.neural = { error: String(e?.message ?? e) };
+    }
+  }
+  delete context.__rawChunks;
+
   const regions = await vision.findSensitiveRegions(context.visualCandidates);
   context.visualRedactions = boxesFromRegions(regions, context.viewport.dpr);
   delete context.visualCandidates;          // raw boxes never leave the client

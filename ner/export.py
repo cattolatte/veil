@@ -19,9 +19,17 @@ model.eval()
 print(f"parameters: {param_count(model):,}")
 
 out = Path("ner/out"); out.mkdir(exist_ok=True)
-dummy = torch.zeros(1, 384, dtype=torch.long)
+# int32 rather than int64: the browser must build a typed array per inference,
+# and BigInt64Array construction is markedly slower than Int32Array. The values
+# are byte indices, so 32 bits is ample.
+class Int32Wrapper(torch.nn.Module):
+    def __init__(self, inner): super().__init__(); self.inner = inner
+    def forward(self, x): return self.inner(x.long())
+
+wrapped = Int32Wrapper(model).eval()
+dummy = torch.zeros(1, 384, dtype=torch.int32)
 torch.onnx.export(
-    model, (dummy,), str(out / "pii_tagger.onnx"),
+    wrapped, (dummy,), str(out / "pii_tagger.onnx"),
     input_names=["chars"], output_names=["logits"],
     dynamic_axes={"chars": {0: "batch", 1: "len"}, "logits": {0: "batch", 1: "len"}},
     opset_version=17,
@@ -44,7 +52,7 @@ import onnxruntime as ort
 sess = ort.InferenceSession(str(out / "pii_tagger.onnx"), providers=["CPUExecutionProvider"])
 
 def tag(text):
-    b = np.frombuffer(text.encode("utf-8"), dtype=np.uint8).astype(np.int64)[None]
+    b = np.frombuffer(text.encode("utf-8"), dtype=np.uint8).astype(np.int32)[None]
     logits = sess.run(None, {"chars": b})[0][0]
     ids = logits.argmax(-1)
     spans, cur = [], None
@@ -65,7 +73,7 @@ def tag(text):
 
 with torch.no_grad():
     t_out = model(torch.from_numpy(np.frombuffer(b"hello", dtype=np.uint8).astype(np.int64)[None])).numpy()
-o_out = sess.run(None, {"chars": np.frombuffer(b"hello", dtype=np.uint8).astype(np.int64)[None]})[0]
+o_out = sess.run(None, {"chars": np.frombuffer(b"hello", dtype=np.uint8).astype(np.int32)[None]})[0]
 print(f"torch/onnx max abs diff: {np.abs(t_out - o_out).max():.2e}")
 
 print("\nsample predictions:")

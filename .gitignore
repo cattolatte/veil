@@ -56,3 +56,5 @@ datagen/harvest_big/
 datagen/harvest_shots/
 datagen/harvest_xl/
 datagen/harvest*/
+
+store/*.zip

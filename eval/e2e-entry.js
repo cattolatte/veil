@@ -10,12 +10,42 @@ import { buildContext } from "../extension/src/lib/serialize.js";
 import { boxesFromRegions } from "../extension/src/lib/redact.js";
 import { VisionEngine } from "../extension/src/vision/engine.js";
 import { interactiveElements } from "../extension/src/lib/dom.js";
+import { PiiTagger } from "../extension/src/vision/tagger.js";
+import { redactText } from "../extension/src/lib/redact.js";
 
 const vision = new VisionEngine();
+const tagger = new PiiTagger();
 
-export async function capture() {
+export async function capture({ neural = false } = {}) {
   const t0 = performance.now();
-  const context = buildContext();
+  const context = buildContext({ retainRawText: neural });
+  if (neural) {
+    const tN = performance.now();
+    let added = 0;
+    const out = [];
+    const blocks = context.__rawChunks ?? [];
+    const perBlock = await tagger.scanBlocks(blocks);
+    for (let bi = 0; bi < blocks.length; bi++) {
+      const block = blocks[bi];
+      const spans = perBlock[bi];
+      if (!spans.length) { out.push(block); continue; }
+      const bytes = new TextEncoder().encode(block);
+      const dec = new TextDecoder();
+      const mapped = spans.map((s) => ({
+        kind: s.kind,
+        start: dec.decode(bytes.subarray(0, s.start)).length,
+        end: dec.decode(bytes.subarray(0, s.end)).length,
+      })).sort((a, b) => a.start - b.start);
+      out.push(redactText(block, mapped).text);
+      added += mapped.length;
+    }
+    if (added) {
+      context.text = out.join(" ").slice(0, 8000);
+      context.stats.redactedSpans += added;
+    }
+    context.neural = { added, ms: +(performance.now() - tN).toFixed(1), backend: tagger.backend };
+  }
+  delete context.__rawChunks;
   const regions = await vision.findSensitiveRegions(context.visualCandidates);
   context.visualRedactions = boxesFromRegions(regions, context.viewport.dpr);
   delete context.visualCandidates;

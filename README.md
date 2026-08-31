@@ -11,7 +11,7 @@ Only anonymised structure reaches the server — which returns an action the cli
 
 [![CI](https://github.com/cattolatte/veil/actions/workflows/ci.yml/badge.svg)](https://github.com/cattolatte/veil/actions/workflows/ci.yml)
 [![Deploy demo](https://github.com/cattolatte/veil/actions/workflows/pages.yml/badge.svg)](https://github.com/cattolatte/veil/actions/workflows/pages.yml)
-![Tests](https://img.shields.io/badge/tests-22%20passing-4ade80)
+![Tests](https://img.shields.io/badge/tests-26%20passing-4ade80)
 ![Invariants](https://img.shields.io/badge/privacy%20invariants-5%2F5-4ade80)
 ![Latency](https://img.shields.io/badge/capture-8.9%20ms-818cf8)
 ![Heap](https://img.shields.io/badge/heap-3.1%20MB-818cf8)
@@ -155,10 +155,9 @@ Stated plainly, because a judge will ask. Fuller treatment in the
 
 - **Screen-model precision is 92.8%** on held-out real pages, so about one in
   fourteen masked regions did not need masking. It flags 3.7% of the screen.
-- **The recall ceiling is ~36.5%** on general PII. Names, addresses and cities
-  have no pattern to match. The neural tagger exists but
-  [over-fires on prose](docs/adr/009-neural-tagger-not-shipped.md) and is not
-  shipped.
+- **The neural tagger is opt-in, not default.** It adds names, addresses,
+  usernames and IPs — past the ~36.5% pattern ceiling — for about 10 ms. Off by
+  default because it is the newest and least-tested channel.
 - **Context rules are hand-written.** They were tuned by inspecting failures. A
   learned verifier would set the boundary from data
   ([ADR-006](docs/adr/006-context-requirements.md)).

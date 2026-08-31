@@ -57,9 +57,18 @@ class Context(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class HistoryEntry(BaseModel):
+    action: dict[str, Any] | None = None
+    reason: str = ""
+
+
 class ActRequest(BaseModel):
     goal: str
     context: Context
+    # What the agent has already done this run. Without it the planner has no
+    # memory and will repeat its first action forever - the classic way an
+    # agent loop looks busy while achieving nothing.
+    history: list[HistoryEntry] = []
     # Already redacted client-side: sensitive pixels were destroyed before
     # encoding, so this is safe to forward to a model.
     screenshot: str | None = None
@@ -101,6 +110,14 @@ def choose_action(goal: str, ctx: Context) -> Plan:
     """
     g = goal.lower()
     leaked = audit_for_leaks(ctx)
+    history = history or []
+
+    # Do not repeat something already done. The rule planner is stateless by
+    # nature, so without this it re-fills a field it has already filled.
+    done = {
+        (h.action or {}).get("type", "") + str((h.action or {}).get("index", ""))
+        for h in history if getattr(h, "action", None)
+    }
 
     if "summar" in g:
         return Plan(action=Action(type="noop"), reason=f"Summarised {len(ctx.text)} redacted chars.", leaked=leaked)
@@ -112,6 +129,8 @@ def choose_action(goal: str, ctx: Context) -> Plan:
     if any(k in g for k in ("fill", "type", "enter", "search")):
         for e in ctx.elements:
             if e.tag in ("input", "textarea") and not e.sensitive:
+                if f"type{e.i}" in done:
+                    continue                       # already filled this one
                 if e.state and not e.state.get("filled"):
                     return Plan(
                         action=Action(type="type", index=e.i, text=goal.split(":")[-1].strip()),
@@ -134,7 +153,7 @@ def choose_action(goal: str, ctx: Context) -> Plan:
         overlap = len(words & set(re.findall(r"\w+", label)))
         if overlap > score:
             best, score = e, overlap
-    if best:
+    if best and f"click{best.i}" not in done:
         return Plan(action=Action(type="click", index=best.i),
                     reason=f"Clicking {best.i} ({best.label[:40]}), {score} keyword match(es).", leaked=leaked)
 
@@ -148,7 +167,7 @@ def act(req: ActRequest) -> Plan:
     is worth more on stage than one that is occasionally smarter."""
     leaked = audit_for_leaks(req.context)
 
-    llm_action = llm.plan(req.goal, req.context, req.screenshot)
+    llm_action = llm.plan(req.goal, req.context, req.screenshot, req.history)
     if llm_action:
         kind = llm_action.pop("type")
         reason = llm_action.pop("reason", "")
@@ -160,7 +179,7 @@ def act(req: ActRequest) -> Plan:
             planner=f"llm:{os.getenv('VEIL_MODEL', 'gpt-4o-mini')}",
         )
 
-    plan = choose_action(req.goal, req.context)
+    plan = choose_action(req.goal, req.context, req.history)
     plan.planner = "rules" if not llm.available() else "rules (model unavailable)"
     return plan
 

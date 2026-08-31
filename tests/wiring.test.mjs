@@ -50,3 +50,25 @@ test("every content-script module reachable from an entry point is imported", ()
     assert.ok(all.includes(mod), `${mod} is written but never imported`);
   }
 });
+
+test("content script runs the neural pass and deletes the raw text", () => {
+  const content = readFileSync("extension/src/content.js", "utf8");
+  assert.match(content, /from "\.\/vision\/tagger\.js"/, "tagger must be imported");
+  assert.match(content, /applyNeuralPass\(/, "neural pass must be called");
+  assert.match(content, /delete context\.__rawChunks/,
+    "raw text must be deleted before the context is returned");
+
+  // The deletion must not sit inside the `if (neural)` block, or a thrown
+  // error would skip it and leave the raw text attached.
+  const idx = content.indexOf("delete context.__rawChunks");
+  const before = content.slice(0, idx);
+  const opens = (before.match(/if \(neural\) \{/g) || []).length;
+  const closes = (before.match(/\n  \}/g) || []).length;
+  assert.ok(opens <= closes, "deletion must be unconditional, outside the neural branch");
+});
+
+test("multi-step loop has a bound and a stall guard", () => {
+  assert.match(bg, /MAX_STEPS/, "there must be a hard step ceiling");
+  assert.match(bg, /stalled/, "a repeated action must terminate the loop");
+  assert.match(bg, /stopReason/, "the caller must learn why the loop ended");
+});

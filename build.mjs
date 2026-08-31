@@ -36,6 +36,18 @@ const OUT = "extension/dist";
 await rm(OUT, { recursive: true, force: true });
 await mkdir(OUT, { recursive: true });
 
+// The popup imports the browser shim, so it needs bundling as well - a popup
+// script with a bare import fails exactly like a content script does.
+const popupConfig = {
+  entryPoints: ["extension/popup/popup.js"],
+  bundle: true,
+  format: "iife",
+  target: ["chrome110", "firefox121"],
+  outfile: "extension/dist/popup.js",
+  logLevel: "info",
+  legalComments: "none",
+};
+
 const config = {
   entryPoints: ["extension/src/content.js"],
   bundle: true,
@@ -57,11 +69,11 @@ const testConfig = {
 };
 
 if (watch) {
-  const ctxs = await Promise.all([esbuild.context(config), esbuild.context(testConfig)]);
+  const ctxs = await Promise.all([esbuild.context(config), esbuild.context(testConfig), esbuild.context(popupConfig)]);
   await Promise.all(ctxs.map((c) => c.watch()));
   console.log("watching…");
 } else {
-  await Promise.all([esbuild.build(config), esbuild.build(testConfig)]);
+  await Promise.all([esbuild.build(config), esbuild.build(testConfig), esbuild.build(popupConfig)]);
   await cp("extension/src/background.js", `${OUT}/background.js`);
 
   await mkdir("extension/vendor", { recursive: true });

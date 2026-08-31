@@ -46,7 +46,10 @@ Rules:
 - `index` must be one of the element indices provided. Never invent one.
 - NEVER emit a `type` action targeting an element marked sensitive. If the goal
   requires filling one, return `noop` and say the user must do it themselves.
-- Reply with the JSON object only. No prose, no code fence."""
+- Reply with the JSON object only. No prose, no code fence.
+- If the goal is already achieved, return `noop`. That ends the run cleanly;
+  inventing further actions to look busy is worse than stopping.
+- Do not repeat an action listed as already done."""
 
 ACTION_TYPES = {"click", "type", "scroll", "noop"}
 
@@ -74,7 +77,8 @@ def available() -> bool:
     return bool(os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_BASE_URL"))
 
 
-def plan(goal: str, ctx: Any, screenshot: str | None = None) -> dict | None:
+def plan(goal: str, ctx: Any, screenshot: str | None = None,
+         history: list | None = None) -> dict | None:
     """Ask the model for an action. Returns None on any failure — the caller
     falls back to the rule-based planner rather than surfacing an error."""
     if not available():
@@ -90,7 +94,14 @@ def plan(goal: str, ctx: Any, screenshot: str | None = None) -> dict | None:
     )
     model = os.getenv("VEIL_MODEL", "gpt-4o-mini")
 
-    content: list[dict] = [{"type": "text", "text": f"Goal: {goal}\n\n{_describe(ctx)}"}]
+    past = ""
+    if history:
+        lines = [f"  {i+1}. {(h.action or {}).get('type','?')}"
+                 f"{' @' + str((h.action or {}).get('index')) if (h.action or {}).get('index') is not None else ''}"
+                 f" — {h.reason}" for i, h in enumerate(history)]
+        past = "\n\nAlready done this run (do NOT repeat):\n" + "\n".join(lines)
+
+    content: list[dict] = [{"type": "text", "text": f"Goal: {goal}{past}\n\n{_describe(ctx)}"}]
     if screenshot:
         # Already redacted client-side: the sensitive pixels no longer exist.
         content.append({"type": "image_url", "image_url": {"url": screenshot}})
