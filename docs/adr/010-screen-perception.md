@@ -74,6 +74,26 @@ suppressed. Where the DOM demonstrably cannot see (canvas, image, video), the
 screen model is the only witness and its flag stands. `unscanned` regions are
 never suppressed. Implemented in `extension/src/vision/fuse.js`.
 
+## The gap between built and connected
+
+For two milestones this model was trained, exported, benchmarked at 90.1% F1 on
+910 held-out real pages — and **not imported by anything.** `screen-capture.js`
+and `fuse.js` existed and were never called. The running extension was DOM plus
+face detection only.
+
+Every unit test passed throughout, because every unit worked. Nothing asserted
+that the units were joined.
+
+`tests/wiring.test.mjs` now asserts the wiring itself: that the capture pipeline
+is imported and called, that fusion is applied, that only the *redacted* frame
+is ever assigned for transmission, and that the error path sends no screenshot
+at all. Enforced in CI.
+
+The general lesson is uncomfortable and worth stating: **a component that is
+built, measured and documented can still not be part of the product**, and the
+usual signals — passing tests, a green build, a written decision record — do not
+distinguish the two.
+
 ## Consequences
 
 At threshold 0.95 on **910 held-out real pages**: **P 92.8%, R 87.5%, F1 90.1%,

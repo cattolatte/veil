@@ -135,3 +135,29 @@ test("a PII match straddling a block boundary is redacted, not dropped", async (
   assert.ok(!text.includes("2346"), `straddling tail survived redaction: ${text}`);
   assert.ok(text.includes("[[AADHAAR]]"));
 });
+
+test("DOM fusion suppresses only regions the DOM can account for", async () => {
+  const { fuse } = await import("../extension/src/vision/fuse.js?" + Math.random());
+
+  const domContext = {
+    elements: [
+      { i: 0, box: { x: 0, y: 0, w: 200, h: 100 } },                    // clean text
+      { i: 1, box: { x: 0, y: 300, w: 200, h: 40 }, sensitive: "password" },
+    ],
+    visualRedactions: [{ x: 400, y: 0, w: 100, h: 100 }],               // DOM is blind here
+  };
+
+  const CLEAN    = { x: 10,  y: 10,  w: 80, h: 40, kind: "screen_pii", severity: 2 };
+  const OPAQUE   = { x: 410, y: 10,  w: 80, h: 40, kind: "screen_pii", severity: 2 };
+  const OVER_PW  = { x: 10,  y: 305, w: 80, h: 30, kind: "screen_pii", severity: 2 };
+  const UNSCANNED= { x: 10,  y: 600, w: 80, h: 40, kind: "unscanned",  severity: 3 };
+
+  const { regions: kept, suppressed } = fuse([CLEAN, OPAQUE, OVER_PW, UNSCANNED], domContext);
+  const has = (r) => kept.some((k) => k.x === r.x && k.y === r.y);
+
+  assert.equal(suppressed, 1, "exactly one region is explained by clean DOM text");
+  assert.ok(!has(CLEAN),    "a region the DOM explains as clean text should be suppressed");
+  assert.ok(has(OPAQUE),    "a region over an area the DOM cannot see must survive");
+  assert.ok(has(OVER_PW),   "a region over a sensitive element is agreement, not noise");
+  assert.ok(has(UNSCANNED), "unscanned regions must NEVER be suppressed");
+});

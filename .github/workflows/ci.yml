@@ -33,6 +33,12 @@ jobs:
       - name: Unit tests
         run: node --test tests/pii.test.mjs
 
+      # The screen model was trained, exported, benchmarked — and left
+      # unimported for two milestones while every unit test passed. These
+      # assert that the units are actually joined together.
+      - name: Pipeline wiring
+        run: node --test tests/wiring.test.mjs
+
       # The five privacy invariants from docs/THREAT_MODEL.md. These decide
       # whether the system is safe, not merely accurate.
       - name: Privacy invariants
