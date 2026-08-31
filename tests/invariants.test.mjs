@@ -171,7 +171,7 @@ test("INVARIANT 6 — retained raw text is non-enumerable and never serialises",
 
   const ctx = await buildContext({ retainRawText: true });
   assert.ok(Array.isArray(ctx.__rawChunks), "raw text should be retained when asked");
-  assert.ok(ctx.__rawChunks.some((c) => c.includes("234123412346")),
+  assert.ok(ctx.__rawChunks.some((c) => c.raw.includes("234123412346")),
     "retained text is the UNREDACTED original — that is the point of it");
 
   // The two guards.
@@ -190,4 +190,49 @@ test("raw text is NOT retained unless explicitly requested", async () => {
   const ctx = await buildContext();
   assert.equal(ctx.__rawChunks, undefined, "default must not retain raw text");
   assert.deepEqual(leaks(ctx), []);
+});
+
+test("INVARIANT 7 — the neural pass must not un-redact pattern findings", async () => {
+  // The neural pass rebuilds context.text from the RAW block text. If it applies
+  // only its own spans, every checksum-verified identifier the pattern layer
+  // caught goes out in plain text. This shipped once; it must not again.
+  const { redactText } = await import("../extension/src/lib/redact.js?" + Math.random());
+  const { scanText } = await import("../extension/src/lib/pii.js?" + Math.random());
+
+  const raw = "Aadhaar 2341 2341 2346 and PAN ABCPE1234K for Priya Sharma";
+  const patternSpans = scanText(raw);
+  assert.ok(patternSpans.length >= 2, "fixture must contain pattern-detectable PII");
+
+  // Neural finds the name; the merge must keep the pattern spans as well.
+  const neural = [{ kind: "name", start: raw.indexOf("Priya"), end: raw.length }];
+  const all = [...patternSpans, ...neural].sort((a, b) => a.start - b.start || b.end - a.end);
+  const merged = [];
+  for (const sp of all) {
+    const last = merged[merged.length - 1];
+    if (last && sp.start < last.end) { last.end = Math.max(last.end, sp.end); continue; }
+    merged.push({ ...sp });
+  }
+  const { text } = redactText(raw, merged);
+
+  assert.ok(!text.includes("2341 2341 2346"), "Aadhaar must stay redacted");
+  assert.ok(!text.includes("ABCPE1234K"), "PAN must stay redacted");
+  assert.ok(!text.includes("Priya Sharma"), "the neural find must also be redacted");
+  assert.ok(text.includes("[[AADHAAR]]") && text.includes("[[PAN]]"),
+    "pattern placeholders must survive the merge");
+});
+
+test("retained blocks carry their pattern spans, not bare text", async () => {
+  // Without the spans, the neural pass cannot re-apply the pattern redactions.
+  mountPage(PAGE);
+  const { buildContext } = await import("../extension/src/lib/serialize.js?" + Math.random());
+  const ctx = await buildContext({ retainRawText: true });
+
+  assert.ok(Array.isArray(ctx.__rawChunks));
+  for (const entry of ctx.__rawChunks) {
+    assert.equal(typeof entry.raw, "string", "each retained block needs its raw text");
+    assert.ok(Array.isArray(entry.spans), "each retained block needs its pattern spans");
+  }
+  const withPii = ctx.__rawChunks.find((e) => e.spans.length > 0);
+  assert.ok(withPii, "at least one block should carry pattern spans");
+  assert.deepEqual(leaks(JSON.stringify(ctx)), [], "retained blocks still must not serialise");
 });

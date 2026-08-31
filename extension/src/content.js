@@ -49,40 +49,87 @@ function drawOverlay(context, regions) {
  * deleted here before the context is returned. The raw text never leaves this
  * function.
  */
+/** UTF-8 byte width of a code point. */
+function utf8Width(cp) {
+  if (cp < 0x80) return 1;
+  if (cp < 0x800) return 2;
+  if (cp < 0x10000) return 3;
+  return 4;
+}
+
 async function applyNeuralPass(context) {
-  const raw = context.__rawChunks;
-  if (!raw?.length) return null;
+  const retained = context.__rawChunks;
+  if (!retained?.length) return null;
 
   const t0 = performance.now();
   let added = 0;
   const byKind = {};
-  const redacted = [];
+  const rebuilt = [];
 
-  const perBlock = await tagger.scanBlocks(raw);
-  for (let bi = 0; bi < raw.length; bi++) {
-    const block = raw[bi];
-    const spans = perBlock[bi];
-    if (!spans.length) { redacted.push(block); continue; }
+  const blocks = retained.map((r) => r.raw);
+  const perBlock = await tagger.scanBlocks(blocks);
 
-    // Byte offsets from the tagger, converted to string indices.
-    const bytes = new TextEncoder().encode(block);
-    const dec = new TextDecoder();
-    const mapped = spans.map((s) => ({
-      kind: s.kind,
-      start: dec.decode(bytes.subarray(0, s.start)).length,
-      end: dec.decode(bytes.subarray(0, s.end)).length,
-    })).sort((a, b) => a.start - b.start);
+  for (let bi = 0; bi < retained.length; bi++) {
+    const { raw, spans: patternSpans } = retained[bi];
+    const neural = perBlock[bi];
 
-    const { text } = redactText(block, mapped);
-    redacted.push(text);
-    added += mapped.length;
-    for (const m of mapped) byKind[m.kind] = (byKind[m.kind] || 0) + 1;
+    if (!neural.length) {
+      // No neural finds: re-apply the pattern spans so this block is redacted
+      // exactly as it was. Pushing `raw` here would un-redact it.
+      rebuilt.push(redactText(raw, patternSpans).text);
+      continue;
+    }
+
+    // Neural offsets are byte indices; pattern offsets are string indices.
+    // Build the byte -> string index map once per block rather than decoding a
+    // prefix per span, which was O(spans x blockLength).
+    const bytes = new TextEncoder().encode(raw);
+    const byteToChar = new Int32Array(bytes.length + 1);
+    {
+      let b = 0;
+      for (let ci = 0; ci < raw.length; ci++) {
+        const width = utf8Width(raw.codePointAt(ci));
+        const isSurrogatePair = width === 4;
+        for (let k = 0; k < width; k++) byteToChar[b + k] = ci;
+        b += width;
+        if (isSurrogatePair) ci++;          // skip the low surrogate
+      }
+      byteToChar[bytes.length] = raw.length;
+    }
+
+    const neuralMapped = neural.map((sp) => ({
+      kind: sp.kind,
+      start: byteToChar[sp.start] ?? 0,
+      end: byteToChar[sp.end] ?? raw.length,
+    }));
+
+    // BOTH sets, resolved so overlaps redact once. Pattern spans win ties:
+    // they are checksum-verified and carry a more precise kind.
+    const all = [...patternSpans, ...neuralMapped]
+      .filter((sp) => sp.end > sp.start)
+      .sort((a, b) => a.start - b.start || b.end - a.end);
+
+    const merged = [];
+    for (const sp of all) {
+      const last = merged[merged.length - 1];
+      if (last && sp.start < last.end) {
+        last.end = Math.max(last.end, sp.end);   // absorb, keep the earlier kind
+        continue;
+      }
+      merged.push({ ...sp });
+    }
+
+    rebuilt.push(redactText(raw, merged).text);
+
+    // Count only what the neural pass contributed beyond the pattern layer.
+    const patternCount = patternSpans.length;
+    const gained = Math.max(0, merged.length - patternCount);
+    added += gained;
+    for (const m of neuralMapped) byKind[m.kind] = (byKind[m.kind] || 0) + 1;
   }
 
+  context.text = rebuilt.join(" ").slice(0, 8000);
   if (added) {
-    // Re-derive the transmitted text from the neurally-redacted blocks, so the
-    // pattern placeholders and the neural ones both survive.
-    context.text = redacted.join(" ").slice(0, 8000);
     context.stats.redactedSpans += added;
     for (const [k, v] of Object.entries(byKind)) {
       context.stats.byKind[k] = (context.stats.byKind[k] || 0) + v;

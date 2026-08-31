@@ -23,26 +23,36 @@ export async function capture({ neural = false } = {}) {
     const tN = performance.now();
     let added = 0;
     const out = [];
-    const blocks = context.__rawChunks ?? [];
-    const perBlock = await tagger.scanBlocks(blocks);
-    for (let bi = 0; bi < blocks.length; bi++) {
-      const block = blocks[bi];
-      const spans = perBlock[bi];
-      if (!spans.length) { out.push(block); continue; }
-      const bytes = new TextEncoder().encode(block);
+    const retained = context.__rawChunks ?? [];
+    const perBlock = await tagger.scanBlocks(retained.map((r) => r.raw));
+
+    for (let bi = 0; bi < retained.length; bi++) {
+      const { raw, spans: patternSpans } = retained[bi];
+      const nspans = perBlock[bi];
+      if (!nspans.length) { out.push(redactText(raw, patternSpans).text); continue; }
+
+      const bytes = new TextEncoder().encode(raw);
       const dec = new TextDecoder();
-      const mapped = spans.map((s) => ({
-        kind: s.kind,
-        start: dec.decode(bytes.subarray(0, s.start)).length,
-        end: dec.decode(bytes.subarray(0, s.end)).length,
-      })).sort((a, b) => a.start - b.start);
-      out.push(redactText(block, mapped).text);
-      added += mapped.length;
+      const mapped = nspans.map((sp) => ({
+        kind: sp.kind,
+        start: dec.decode(bytes.subarray(0, sp.start)).length,
+        end: dec.decode(bytes.subarray(0, sp.end)).length,
+      }));
+
+      const all = [...patternSpans, ...mapped]
+        .filter((sp) => sp.end > sp.start)
+        .sort((a, b) => a.start - b.start || b.end - a.end);
+      const merged = [];
+      for (const sp of all) {
+        const last = merged[merged.length - 1];
+        if (last && sp.start < last.end) { last.end = Math.max(last.end, sp.end); continue; }
+        merged.push({ ...sp });
+      }
+      out.push(redactText(raw, merged).text);
+      added += Math.max(0, merged.length - patternSpans.length);
     }
-    if (added) {
-      context.text = out.join(" ").slice(0, 8000);
-      context.stats.redactedSpans += added;
-    }
+    context.text = out.join(" ").slice(0, 8000);
+    if (added) context.stats.redactedSpans += added;
     context.neural = { added, ms: +(performance.now() - tN).toFixed(1), backend: tagger.backend };
   }
   delete context.__rawChunks;
