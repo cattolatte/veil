@@ -1,4 +1,4 @@
-# Character-level PII tagger — experimental, NOT in the pipeline
+# Character-level PII tagger — shipped
 
 ## Why it exists
 
@@ -32,36 +32,52 @@ For comparison, the off-the-shelf option `onnx-community/multilang-pii-ner`
 is **278 MB** quantised — 690× larger. With 20% of the rubric on client
 resource use, shipping it would lose more marks than the accuracy gains.
 
-## Why it is not wired in
+## It was withheld for two milestones, and why
 
-**It flags 15.1% of ordinary page text as PII.**
+Trained on ai4privacy alone it flagged **15.1% of ordinary page text** as PII —
+`Wikipedia`, `Main`, `Bank`. That corpus is form-shaped, where nearly every
+proper noun IS personal data; real pages are prose, where nearly none are.
+Shipping it then would have taken redaction precision from 100% to near zero.
 
-Measured over 8 real pages before any injection — text that is almost entirely
-not personal data:
+## What fixed it
 
-```
-page text bytes:  50,497
-flagged as PII:    7,618   (15.1%)
-sample flags: 'Wikipedia'  'Main'  'Bank'  'Wikipedia Jump'
-```
+**Real-prose negatives.** The harvester captures each page *before* injection,
+so its baseline text is real and known-clean. 500 such pages — 125,688 windows,
+every byte labelled `O` — were mixed into training.
 
-This is the same failure as the date regex one milestone earlier, and it has
-the same cause. ai4privacy is form-shaped: filled templates where nearly every
-proper noun IS personal data. Real web pages are prose, where nearly none of
-them are. A model trained on the first distribution over-fires on the second.
+| | before | after |
+|---|---:|---:|
+| Flagged on real page prose | 15.1% | **0.0%** |
+| Detects genuine PII | yes | yes |
 
-Shipping it would take redaction precision — 20% of the score — from 100% to
-somewhere near zero.
+Same fix as the screen model, same failure mode. Fourth and fifth occurrences
+of the same lesson.
 
-## What would fix it
+## And a confidence threshold
 
-Train with negative examples from real prose. The harvester already produces
-exactly that: real pages, where everything except the planted values is known
-to be O. Mixing real-page negatives into training at roughly 1:1 should
-collapse the false-positive rate while keeping recall on genuine PII.
+Argmax alone still over-fired on **UI chrome** — short title-case button and
+heading text, a third distribution again. Observed on a page of interface text:
+18 detections where 3 were correct, with `Nothing`, `Press` and `Run` tagged.
 
-Until that is done and measured on the harvest corpus, this stays out of the
-pipeline.
+Requiring **0.90 confidence** rather than merely the best class fixed it: 18
+finds → 6, with zero UI words wrongly redacted and the genuine name and address
+still caught.
+
+## Performance
+
+| | |
+|---|---|
+| Neural pass | **~10 ms** warm |
+| Backend | WebGPU |
+| Opt-in | Yes — off by default |
+
+Two optimisations took it from 1,623 ms to ~10 ms, a 160× improvement:
+
+- **int32 input instead of int64.** Building a `BigInt64Array` per inference
+  dominated the cost; byte values need nowhere near 64 bits.
+- **Batched block scanning.** A page yields dozens of short blocks, and
+  per-call overhead swamped the compute. Joining them and scanning once cuts
+  inference calls by an order of magnitude.
 
 ## Reproduce
 

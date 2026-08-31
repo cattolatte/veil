@@ -34,7 +34,7 @@ function safeLabel(raw) {
   return spans.length ? redactText(t, spans).text : t;
 }
 
-export function buildContext({ maxElements = 120 } = {}) {
+export function buildContext({ maxElements = 120, retainRawText = false } = {}) {
   const budget = new Budget();
   const vp = viewportSize();
   const stats = { scanned: 0, redactedElements: 0, redactedSpans: 0, byKind: {} };
@@ -131,6 +131,7 @@ export function buildContext({ maxElements = 120 } = {}) {
   }
 
   const chunks = [];
+  const rawChunks = [];
   let textBudget = 8000;
   // Tail of the previous block, used ONLY as lookbehind context.
   //
@@ -167,13 +168,17 @@ export function buildContext({ maxElements = 120 } = {}) {
     }
     const { text } = redactText(raw, spans);
     chunks.push(text);
+    // Raw block text, retained ONLY when the neural pass is going to run over
+    // it. It is scanned in the content script and deleted before serialisation
+    // - it must never reach the payload.
+    if (retainRawText) rawChunks.push(raw);
     textBudget -= text.length;
   }
 
   budget.mark("text");
   const cost = budget.finish();
 
-  return {
+  const ctx = {
     schema: "veil/1",
     url: location.origin + location.pathname,   // query string dropped: it carries PII
     title: safeLabel(document.title),
@@ -186,4 +191,13 @@ export function buildContext({ maxElements = 120 } = {}) {
     cost,
     buildMs: cost.totalMs,
   };
+  if (retainRawText) {
+    // Non-enumerable, so JSON.stringify cannot pick it up even if the explicit
+    // deletion in content.js were ever missed. Belt and braces on the path
+    // that matters most.
+    Object.defineProperty(ctx, "__rawChunks", {
+      value: rawChunks, enumerable: false, configurable: true,
+    });
+  }
+  return ctx;
 }

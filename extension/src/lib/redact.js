@@ -14,6 +14,7 @@ const PLACEHOLDER = {
   aadhaar: "[[AADHAAR]]", pan: "[[PAN]]", card: "[[CARD]]", ifsc: "[[IFSC]]",
   upi: "[[UPI]]", email: "[[EMAIL]]", phone_in: "[[PHONE]]", dob: "[[DOB]]",
   id_number: "[[ID_NUMBER]]",
+  name: "[[NAME]]", addr: "[[ADDRESS]]", user: "[[USERNAME]]", ip: "[[IP]]",
   password: "[[PASSWORD]]", sensitive_field: "[[SENSITIVE]]", visual_candidate: "[[IMAGE]]",
 };
 

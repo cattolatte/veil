@@ -72,6 +72,46 @@ def windows(x: np.ndarray, y: np.ndarray):
         yield chunk_x, chunk_y
 
 
+def real_prose_negatives(max_pages: int = 500, window: int = MAXLEN):
+    """
+    Real page text, labelled entirely O.
+
+    The tagger trained on ai4privacy alone flagged 15.1% of ordinary page text
+    as PII - "Wikipedia", "Main", "Bank". That corpus is form-shaped, where
+    nearly every proper noun IS personal data. Real pages are prose, where
+    nearly none are.
+
+    The harvester captures each page BEFORE injection, so its baseline HTML is
+    real text that is known-clean. Stripped of markup, it is exactly the
+    negative evidence the model never saw.
+    """
+    import json, re
+    X, Y = [], []
+    seen = 0
+    for d in ("datagen/harvest_xl", "datagen/harvest_big", "datagen/harvest_out"):
+        mf = Path(d) / "manifest.jsonl"
+        if not mf.exists():
+            continue
+        for line in mf.read_text().strip().split("\n"):
+            if seen >= max_pages:
+                break
+            row = json.loads(line)
+            html = row.get("baseline_html") or ""
+            if not html:
+                continue
+            text = re.sub(r"<(script|style)\b[^>]*>.*?</\1>", " ", html, flags=re.S | re.I)
+            text = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", text)).strip()
+            if len(text) < 200:
+                continue
+            b = encode_chars(text)
+            y = np.zeros(len(b), dtype=np.int64)          # every byte is O
+            for wx, wy in windows(b, y):
+                X.append(wx); Y.append(wy)
+            seen += 1
+    print(f"real-prose negative pages: {seen}")
+    return X, Y
+
+
 def main() -> None:
     src = Path("datagen/external/pii300k-validation.parquet")
     df = pd.read_parquet(src)
@@ -89,6 +129,13 @@ def main() -> None:
         for wx, wy in windows(x[:n], y[:n]):
             X.append(wx)
             Y.append(wy)
+
+    # Mix in real prose. Roughly balancing positive-bearing windows with
+    # known-clean ones is what collapsed the false-positive rate for the screen
+    # model, and the failure mode here is identical.
+    nx, ny = real_prose_negatives()
+    print(f"windows: {len(X)} from ai4privacy + {len(nx)} real-prose negatives")
+    X.extend(nx); Y.extend(ny)
 
     out = Path("ner/data")
     out.mkdir(parents=True, exist_ok=True)

@@ -8,7 +8,9 @@
     "watch": "node build.mjs --watch",
     "eval": "node eval/detect.mjs datagen/out/manifest.jsonl eval/out/predictions.jsonl",
     "test": "node --test tests/pii.test.mjs tests/invariants.test.mjs tests/wiring.test.mjs",
-    "test:invariants": "node --test tests/invariants.test.mjs"
+    "test:invariants": "node --test tests/invariants.test.mjs",
+    "package": "npm run build && node store/package.mjs chrome",
+    "package:firefox": "npm run build && node store/package.mjs firefox"
   },
   "devDependencies": {
     "esbuild": "^0.24.0",

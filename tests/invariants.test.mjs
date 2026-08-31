@@ -161,3 +161,33 @@ test("DOM fusion suppresses only regions the DOM can account for", async () => {
   assert.ok(has(OVER_PW),   "a region over a sensitive element is agreement, not noise");
   assert.ok(has(UNSCANNED), "unscanned regions must NEVER be suppressed");
 });
+
+test("INVARIANT 6 — retained raw text is non-enumerable and never serialises", async () => {
+  // The neural pass needs the unredacted block text. It is kept on the context
+  // non-enumerably and deleted before transmission. If either guard fails, the
+  // payload carries the very text the pattern layer just redacted.
+  mountPage(PAGE);
+  const { buildContext } = await import("../extension/src/lib/serialize.js?" + Math.random());
+
+  const ctx = await buildContext({ retainRawText: true });
+  assert.ok(Array.isArray(ctx.__rawChunks), "raw text should be retained when asked");
+  assert.ok(ctx.__rawChunks.some((c) => c.includes("234123412346")),
+    "retained text is the UNREDACTED original — that is the point of it");
+
+  // The two guards.
+  assert.ok(!Object.keys(ctx).includes("__rawChunks"), "must not be enumerable");
+  assert.deepEqual(leaks(JSON.stringify(ctx)), [],
+    "even before deletion, serialising must not carry the raw text");
+
+  delete ctx.__rawChunks;
+  assert.equal(ctx.__rawChunks, undefined);
+  assert.deepEqual(leaks(ctx), []);
+});
+
+test("raw text is NOT retained unless explicitly requested", async () => {
+  mountPage(PAGE);
+  const { buildContext } = await import("../extension/src/lib/serialize.js?" + Math.random());
+  const ctx = await buildContext();
+  assert.equal(ctx.__rawChunks, undefined, "default must not retain raw text");
+  assert.deepEqual(leaks(ctx), []);
+});

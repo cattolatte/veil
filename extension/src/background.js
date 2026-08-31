@@ -29,13 +29,16 @@ function friendlyError(err) {
   return m;
 }
 
-async function run(msg) {
+/**
+ * One perceive-plan-act cycle.
+ *
+ * Kept as a single function so the loop below stays readable: an agent step is
+ * capture the world, decide, act, and report what happened.
+ */
+async function step(msg, tab, history) {
   const t0 = performance.now();
 
-  const [tab] = await api.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) throw new Error("No active tab.");
-
-  const context = await sendMessage(tab.id, { cmd: "capture", debug: msg.debug });
+  const context = await sendMessage(tab.id, { cmd: "capture", debug: msg.debug, neural: msg.neural });
   const tCapture = performance.now();
 
   // Screen perception. Opt-in per run because it costs ~200 ms against 8.9 ms
@@ -77,7 +80,7 @@ async function run(msg) {
     const res = await fetch(`${await serverUrl()}/act`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ goal: msg.goal, context, screenshot }),
+      body: JSON.stringify({ goal: msg.goal, context, screenshot, history }),
       signal: ctrl.signal,
     });
     if (!res.ok) throw new Error(`server responded ${res.status}`);
@@ -99,6 +102,7 @@ async function run(msg) {
     plan, executed,
     stats: context.stats,
     cost: context.cost,
+    neural: context.neural ?? null,
     screen: screenStats,
     timing: {
       clientMs: context.totalMs,
@@ -107,6 +111,92 @@ async function run(msg) {
       serverMs: +(tServer - tScreen).toFixed(1),
       roundTripMs: +(performance.now() - t0).toFixed(1),
     },
+  };
+}
+
+const MAX_STEPS = 8;
+const STALL_LIMIT = 2;
+
+/** Stable identity for an action, used to detect a stuck loop. */
+function signature(action) {
+  if (!action) return "none";
+  return [action.type, action.index ?? "-", action.text ?? "-", action.dy ?? "-"].join(":");
+}
+
+/**
+ * The agent loop: perceive, plan, act, repeat.
+ *
+ * The problem statement asks for assistance with "complex workflows", and the
+ * finale evaluates "the provided task" end to end - both of which imply more
+ * than one action. A single step is a demo; a loop is an agent.
+ *
+ * Three ways it stops, and all three matter:
+ *
+ *   done   - the planner returns `noop`, meaning it believes the goal is met.
+ *   stall  - the same action twice running, or two consecutive steps that
+ *            change nothing. Without this an agent will happily click the same
+ *            dead button until the step limit, which looks like working.
+ *   limit  - MAX_STEPS. A hard ceiling so a confused planner cannot loop
+ *            indefinitely against a live page.
+ *
+ * Every step re-perceives from scratch rather than reasoning about a remembered
+ * page. The page may have navigated, re-rendered, or opened a dialog, and a
+ * stale model of it is how agents click the wrong thing with confidence.
+ */
+async function run(msg) {
+  const t0 = performance.now();
+  const [tab] = await api.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) throw new Error("No active tab.");
+
+  const maxSteps = msg.multiStep ? (msg.maxSteps ?? MAX_STEPS) : 1;
+  const steps = [];
+  const history = [];
+  let stalls = 0;
+  let stopReason = "limit";
+
+  for (let i = 0; i < maxSteps; i++) {
+    const result = await step(msg, tab, history);
+    steps.push(result);
+
+    const sig = signature(result.plan.action);
+    history.push({ action: result.plan.action, reason: result.plan.reason });
+
+    if (!result.plan.action || result.plan.action.type === "noop") {
+      stopReason = "done";
+      break;
+    }
+    if (result.executed === false || result.executed?.ok === false) {
+      stopReason = "action failed";
+      break;
+    }
+    // Repeating an action, or producing no effect, means the agent is stuck.
+    const prev = steps[steps.length - 2];
+    if (prev && signature(prev.plan.action) === sig) {
+      if (++stalls >= STALL_LIMIT) { stopReason = "stalled"; break; }
+    } else {
+      stalls = 0;
+    }
+
+    // Let the page settle before re-perceiving: a click may navigate or
+    // re-render, and capturing mid-transition yields a context describing
+    // neither the old page nor the new one.
+    await new Promise((r) => setTimeout(r, 350));
+  }
+
+  const last = steps[steps.length - 1];
+  return {
+    ...last,
+    steps: steps.map((s, i) => ({
+      n: i + 1,
+      action: s.plan.action,
+      reason: s.plan.reason,
+      executed: s.executed,
+      ms: s.timing.roundTripMs,
+      redacted: (s.stats?.redactedSpans ?? 0) + (s.stats?.redactedElements ?? 0),
+    })),
+    stopReason,
+    totalSteps: steps.length,
+    totalMs: +(performance.now() - t0).toFixed(1),
   };
 }
 
