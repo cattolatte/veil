@@ -61,3 +61,32 @@ test("structural classification trusts element type", () => {
   assert.equal(classifyElement(document.getElementById("c")).kind, "autocomplete:cc-number");
   assert.equal(placeholderFor("autocomplete:cc-number"), "[[CC_NUMBER]]");
 });
+
+test("redaction is safe against unsorted, overlapping and malformed spans", () => {
+  // redactText rewrites right-to-left, which silently corrupts its output if
+  // spans arrive unsorted. Every current caller happens to sort — but this is
+  // the function the whole privacy guarantee rests on, and it should not
+  // depend on that.
+  const t = "Aadhaar 234123412346 and email a@b.com here";
+  const unsorted = [
+    { kind: "email", start: t.indexOf("a@b.com"), end: t.indexOf("a@b.com") + 7 },
+    { kind: "aadhaar", start: t.indexOf("234123412346"), end: t.indexOf("234123412346") + 12 },
+  ];
+  const { text } = redactText(t, unsorted);
+  assert.ok(!text.includes("234123412346"), "unsorted input must not leak the Aadhaar");
+  assert.ok(!text.includes("a@b.com"), "unsorted input must not leak the email");
+
+  // Overlaps redact once, at the widest extent.
+  const ov = redactText("abc 234123412346 xyz", [
+    { kind: "aadhaar", start: 4, end: 16 },
+    { kind: "card", start: 6, end: 14 },
+  ]);
+  assert.equal(ov.count, 1);
+  assert.ok(!ov.text.includes("234123412346"));
+
+  // A malformed span is ignored rather than throwing — an exception here would
+  // abort the pass, and an aborted pass transmits everything.
+  assert.equal(redactText("hello", [{ kind: "x", start: NaN, end: 2 }]).text, "hello");
+  assert.equal(placeholderFor(undefined), "[[REDACTED]]");
+  assert.equal(placeholderFor(null), "[[REDACTED]]");
+});

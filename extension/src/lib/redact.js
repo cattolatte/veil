@@ -19,6 +19,10 @@ const PLACEHOLDER = {
 };
 
 export function placeholderFor(kind) {
+  // A missing or malformed kind must still yield a placeholder. Throwing here
+  // would abort the whole redaction pass, and an aborted pass transmits
+  // everything — the worst possible response to a trivial input problem.
+  if (typeof kind !== "string" || !kind) return "[[REDACTED]]";
   if (PLACEHOLDER[kind]) return PLACEHOLDER[kind];
   if (kind.startsWith("autocomplete:")) return `[[${kind.slice(13).toUpperCase().replace(/-/g, "_")}]]`;
   return "[[REDACTED]]";
@@ -27,15 +31,37 @@ export function placeholderFor(kind) {
 /**
  * Apply span redactions to a string, right-to-left so earlier offsets stay
  * valid as the string is rewritten.
+ *
+ * Spans are sorted and overlaps merged FIRST, rather than assumed sorted.
+ * The right-to-left rewrite silently corrupts its output on unsorted input —
+ * given spans for an Aadhaar at 8 and an email at 25 in the wrong order, it
+ * produced `e[[EMAIL]]b.com`, leaving `b.com` in the clear. Every current
+ * caller happens to sort, but this is the function the whole privacy guarantee
+ * rests on, and it should not depend on that.
  */
 export function redactText(text, spans) {
-  if (!spans.length) return { text, count: 0 };
+  if (!spans?.length) return { text, count: 0 };
+
+  const ordered = [...spans]
+    .filter((s) => Number.isFinite(s?.start) && Number.isFinite(s?.end) && s.end > s.start)
+    .sort((a, b) => a.start - b.start || b.end - a.end);
+  if (!ordered.length) return { text, count: 0 };
+
+  const merged = [];
+  for (const s of ordered) {
+    const last = merged[merged.length - 1];
+    // Overlapping spans redact once, keeping the earlier (higher-priority)
+    // kind and the widest extent.
+    if (last && s.start < last.end) { last.end = Math.max(last.end, s.end); continue; }
+    merged.push({ kind: s.kind, start: s.start, end: s.end });
+  }
+
   let out = text;
-  for (let i = spans.length - 1; i >= 0; i--) {
-    const s = spans[i];
+  for (let i = merged.length - 1; i >= 0; i--) {
+    const s = merged[i];
     out = out.slice(0, s.start) + placeholderFor(s.kind) + out.slice(s.end);
   }
-  return { text: out, count: spans.length };
+  return { text: out, count: merged.length };
 }
 
 /**
