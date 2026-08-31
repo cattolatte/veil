@@ -5,8 +5,133 @@ redaction precision 20%, client resource use 20%, latency 15%.
 
 ## [Unreleased]
 
-Corpus is still 60 synthetic pages with no screenshots and no real-world
-layout. The real-page harvester is the remaining gap.
+Nothing outstanding. The next work is listed in the guide's
+[extending](https://github.com/cattolatte/veil-guide) chapter.
+
+## [v0.26.0-beta] — Multi-step loop, neural PII channel, settings, history
+
+- **Multi-step agent loop.** Perceive, plan, act, up to 8 steps. Stops on
+  `noop`, a failed action, a repeated action, or the ceiling. Every step
+  re-perceives from scratch; the server receives action history so neither
+  planner repeats itself.
+- **Neural PII channel shipped**, past the ~36.5% pattern ceiling. Three fixes
+  were needed: real-prose negatives took over-firing from **15.1% to 0.0%**; a
+  0.90 confidence threshold fixed over-firing on UI chrome (18 finds → 6, zero
+  UI words redacted); and `int32` input plus batched block scanning took the
+  pass from **1,623 ms to ~10 ms**.
+- Raw text for the neural pass is retained non-enumerably and deleted before
+  serialisation, with an invariant test asserting it cannot leak.
+- Popup rewritten: light/dark, per-step reporting, settings, 20-run history.
+- Store packaging: allowlisted zip, listing copy, permission justifications.
+- **26 tests.**
+
+## [v0.25.0-beta] — The screen pipeline was never connected
+
+The screen model was trained, exported, benchmarked at 90.1% F1 on 910 held-out
+real pages — and **not imported by anything**. `screen-capture.js` and
+`fuse.js` existed and were never called, for two milestones, while every unit
+test passed because every unit worked.
+
+`tests/wiring.test.mjs` now asserts the wiring itself: the pipeline is imported
+and called, fusion is applied, only the redacted frame is assigned for
+transmission, and the error path assigns no screenshot.
+
+## [v0.24.0-beta] — Screen model F1 90.1%
+
+Retrained on 2,730 real pages. F1 84.1% → **90.1%**, precision 87.6% → 92.8%,
+held-out set 127 → **910 pages**.
+
+**The architecture never changed across five training rounds.** 117 real pages
+bought twelve points over synthetic-only, 384 bought twelve more, 2,730 bought
+six. Every gain came from data.
+
+## [v0.23.0-beta] — Screen model F1 84.1%, DOM fusion
+
+Real-page F1 72.2% → 84.1%. Threshold 0.9 → 0.95, tie broken on precision.
+Adds DOM–screen fusion: the DOM arbitrates where it can account for a region,
+the screen model stands where the DOM is blind, `unscanned` is never suppressed.
+
+## [v0.22.0-beta] — Screen perception and LLM/VLM planner
+
+Closes the two PS requirements we were not meeting: a local vision model that
+reads the screen, and transmission to a centralised LLM/VLM.
+
+Screen perception: convolutional encoder, 435,297 parameters, 1.7 MB ONNX,
+WebGPU. Trained on the generator alone it scored 99.8% on its own split and
+**12.5% on real pages, flagging half the screen** — it had learned where PII
+sits on one template.
+
+LLM planner: OpenAI-compatible, so a local Ollama needs one environment
+variable. Every reply validated — the model cannot name a nonexistent element,
+emit an unknown action, or type into a sensitive field. Ten guard tests.
+
+## [v0.21.1-beta] — Straddling spans redacted, not dropped
+
+A match beginning in the cross-block prefix and ending inside the block was
+filtered away entirely, leaving its tail transmitted in the clear. Now clamped.
+A fail-open introduced by a feature, on the path built to prevent fail-open.
+
+## [v0.21.0-beta] — Hosted demo, README, repository metadata
+
+Demo published to GitHub Pages, publishing only `demo/` with an allowlist and a
+guard step. Note that a Pages site is public even when the repository is
+private.
+
+## [v0.20.0-beta] — Demo redesign
+
+Responsive from 375px, light and dark via `prefers-color-scheme`, accessible
+focus states. The demo bundle is staged by the build rather than committed, so
+it cannot drift from source.
+
+## [v0.19.0-beta] — Live demo, and two bugs it found
+
+Neither was visible to any of the three corpora:
+
+- Block grouping inserted whitespace not present in the rendered text, so
+  `<em>2341</em><em>23412346</em>` became `"2341 23412346"` and stopped
+  matching.
+- Labels and values sit in *sibling* blocks, so context-requiring patterns never
+  saw the label.
+
+`eval/detect.mjs` reimplements text extraction while the product uses
+`serialize.js` over a live DOM — the harness validates the patterns, not the
+pipeline.
+
+## [v0.18.1-beta] — Model size corrected: 403 KB, not 18 KB
+
+The exporter wrote weights to a `.onnx.data` sidecar, leaving an 18 KB graph
+file reported as the model size. Wrong by 22×, across four documents. Caught by
+a CI hygiene check written for an unrelated purpose.
+
+## [v0.18.0-beta] — Privacy invariants automated, CI
+
+The threat model listed five invariants and admitted two were verified only by
+inspection. Writing them as tests immediately found a fourth bug:
+`visualViewport?.width` throws `ReferenceError` on an **undeclared** binding —
+optional chaining does not guard that — aborting the scan and redacting nothing.
+
+## [v0.17.0-beta] — Threat model, model cards, metrics, provenance
+
+A privacy control without a stated threat model is a claim, not an engineering
+artifact. Five threat classes in scope, seven explicitly out. Model cards note
+that YuNet's training data has documented demographic imbalance, which for a
+detector whose miss means failure to mask is a fairness-relevant privacy risk we
+have not measured.
+
+## [v0.16.0-beta] — Architecture decision records and README
+
+## [v0.15.0-beta] — Character-level PII tagger, and why it was not shipped then
+
+100,169 parameters, 403 KB, 91.0% byte-level F1 — and flagged **15.1% of
+ordinary page text**. Same failure as the date patterns: ai4privacy is
+form-shaped, real pages are prose.
+
+## [v0.14.0-beta] — Corrected the real-page harness
+
+Real-page precision read 79.5% with 40 false positives. **All 40 were genuine
+PII already on those pages** — python.org and gnu.org publish real contact
+addresses. Precision 79.5% → **100%**. We were penalising the detector for being
+right.
 
 ## [v0.12.0-beta] — End-to-end loop and on-device face detection
 
