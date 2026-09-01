@@ -72,3 +72,17 @@ test("multi-step loop has a bound and a stall guard", () => {
   assert.match(bg, /stalled/, "a repeated action must terminate the loop");
   assert.match(bg, /stopReason/, "the caller must learn why the loop ended");
 });
+
+test("the server can be started the way the README documents it", () => {
+  // `import llm` in server/main.py resolves only when the working directory is
+  // server/. The README documented `uvicorn server.main:app` from the repo
+  // root, which failed with ModuleNotFoundError — a documented command that
+  // did not work. This asserts the sys.path fix stays.
+  const main = readFileSync("server/main.py", "utf8");
+  assert.match(main, /sys\.path\.insert\(0, str\(Path\(__file__\)\.resolve\(\)\.parent\)\)/,
+    "server/main.py must add its own directory to sys.path");
+  const pathIdx = main.indexOf("sys.path.insert");
+  const llmIdx = main.indexOf("\nimport llm");
+  assert.ok(pathIdx > 0 && llmIdx > pathIdx,
+    "the sys.path line must come BEFORE `import llm`, or it does nothing");
+});

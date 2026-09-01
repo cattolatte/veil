@@ -12,12 +12,21 @@ from __future__ import annotations
 
 import os
 import re
+import sys
+from pathlib import Path
 from typing import Any, Literal
 
-import llm
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+# `import llm` resolves only when the working directory is server/. The README
+# documented `uvicorn server.main:app` from the repository root, which failed
+# with ModuleNotFoundError - a documented command that did not work. Adding
+# this package's own directory to sys.path makes both invocations valid.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import llm  # noqa: E402  (needs the sys.path line above)
 
 app = FastAPI(title="Veil", version="0.1.0")
 app.add_middleware(

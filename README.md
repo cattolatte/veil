@@ -194,11 +194,22 @@ than fails. See [ADR-012](docs/adr/012-local-vlm-planner.md) for why 8B over 4B.
 ## Running it
 
 ```bash
-npm install && npm run build          # required: MV3 needs a bundled content script
+# 1. Build (required — MV3 needs a bundled content script)
+npm install && npm run build
 
-python -m venv .venv && source .venv/bin/activate
+# 2. Server
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r server/requirements.txt
-uvicorn server.main:app --reload --port 8000
+python3 -m uvicorn server.main:app --reload --port 8000
+```
+
+If port 8000 is taken, use another and set it in the extension's Settings
+panel. To run with the local vision model, prefix the server command:
+
+```bash
+OPENAI_BASE_URL=http://127.0.0.1:11434/v1 \
+VEIL_MODEL=qwen3-vl:8b-instruct \
+python3 -m uvicorn server.main:app --reload --port 8000
 ```
 
 Load the extension:
