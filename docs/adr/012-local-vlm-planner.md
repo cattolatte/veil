@@ -56,8 +56,15 @@ VLM runs only when the rules shrug — a `noop` with "no confident action" — o
 when `VEIL_ALWAYS_LLM=1` forces it, which is useful for showing the integration
 is real.
 
-A deliberate refusal counts as a confident decision and is *not* escalated: the
-model should never get a second chance to fill a password field.
+A deliberate refusal is **terminal**, and `VEIL_ALWAYS_LLM` does not override
+it. The danger is not that the model fills the password field — the validator
+catches that. It is that the model writes the secret from the *goal text* into
+some other, non-sensitive field. That action is structurally valid, so no
+validator can reject it. The only safe move is not to ask.
+
+This was wrong when first written: the force flag escalated refusals, and the
+run only stayed safe because the 8B model happened to decline. Safety that
+depends on the model behaving is not safety.
 
 ## Consequences
 
