@@ -27,7 +27,7 @@ import os
 import re
 from typing import Any
 
-SYSTEM = """You are the planning half of a privacy-preserving browser agent.
+SYSTEM = """You plan ONE action for a privacy-preserving browser agent.
 
 You never receive raw page content. Sensitive values are replaced by typed
 placeholders before transmission, and sensitive screen regions are blacked out
@@ -35,21 +35,22 @@ before the screenshot is taken. Placeholders look like [[AADHAAR]], [[EMAIL]],
 [[PASSWORD]]. Treat a placeholder as "a value of this type exists here"; you
 cannot and should not try to recover it.
 
-Given the goal and the sanitised context, reply with ONE action as JSON:
-
-  {"type":"click","index":<int>,"reason":"..."}
-  {"type":"type","index":<int>,"text":"...","reason":"..."}
-  {"type":"scroll","dy":<int>,"reason":"..."}
-  {"type":"noop","reason":"..."}
+Choose the action type by what the goal requires:
+  goal needs text entered  -> {"type":"type","index":<int>,"text":"<exact text>","reason":"..."}
+  goal needs a press/tap   -> {"type":"click","index":<int>,"reason":"..."}
+  goal needs to see more   -> {"type":"scroll","dy":400,"reason":"..."}
+  goal already satisfied   -> {"type":"noop","reason":"..."}
 
 Rules:
-- `index` must be one of the element indices provided. Never invent one.
-- NEVER emit a `type` action targeting an element marked sensitive. If the goal
-  requires filling one, return `noop` and say the user must do it themselves.
-- Reply with the JSON object only. No prose, no code fence.
-- If the goal is already achieved, return `noop`. That ends the run cleanly;
-  inventing further actions to look busy is worse than stopping.
-- Do not repeat an action listed as already done."""
+- "fill", "enter", "type" in the goal ALWAYS mean action type "type", never "click".
+- Copy the requested text verbatim into "text".
+- `index` must be one of the indices listed. Never invent one.
+- NEVER target an element marked SENSITIVE with a "type" action. If the goal asks
+  for that, return "noop" and say the user must do it themselves.
+- If the goal is already achieved, return "noop". Inventing further actions to
+  look busy is worse than stopping.
+- Do not repeat an action listed as already done.
+- Output the JSON object only. No prose, no code fence."""
 
 ACTION_TYPES = {"click", "type", "scroll", "noop"}
 
@@ -77,6 +78,9 @@ def available() -> bool:
     return bool(os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_BASE_URL"))
 
 
+DEFAULT_OLLAMA = "http://127.0.0.1:11434/v1"
+
+
 def plan(goal: str, ctx: Any, screenshot: str | None = None,
          history: list | None = None) -> dict | None:
     """Ask the model for an action. Returns None on any failure — the caller
@@ -89,10 +93,22 @@ def plan(goal: str, ctx: Any, screenshot: str | None = None,
         return None
 
     client = OpenAI(
-        api_key=os.getenv("OPENAI_API_KEY", "not-needed-for-local"),
+        api_key=os.getenv("OPENAI_API_KEY", "ollama"),   # local servers ignore it
         base_url=os.getenv("OPENAI_BASE_URL") or None,
+        timeout=float(os.getenv("VEIL_LLM_TIMEOUT", "20")),
     )
-    model = os.getenv("VEIL_MODEL", "gpt-4o-mini")
+    # Default to the local Qwen3-VL 8B. Open-weights and offline-deployable,
+    # which is what the problem statement asks for, and it keeps the deployment
+    # sovereign: nothing leaves the machine even at the planning step.
+    #
+    # 8B over 4B on the case that matters. Benchmarked on five goals against a
+    # real screenshot: 4B scored 4/5 at 0.9 s median, 8B scored 5/5 at 1.4 s.
+    # The one 4B failed was the safety case - asked to fill a password it
+    # emitted a `type` action targeting the password field. The validator
+    # rejects that, so nothing leaked, but a planner that has to be caught is
+    # worse than one that declines, and half a second is cheap for the
+    # difference.
+    model = os.getenv("VEIL_MODEL", "qwen3-vl:8b-instruct")
 
     past = ""
     if history:

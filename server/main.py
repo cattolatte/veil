@@ -183,12 +183,45 @@ def choose_action(goal: str, ctx: Context, history: list | None = None) -> Plan:
     return Plan(action=Action(type="noop"), reason="No confident action.", leaked=leaked)
 
 
+def rules_are_confident(plan: Plan) -> bool:
+    """Did the cheap planner actually decide something?
+
+    A `noop` with "no confident action" is the rule planner shrugging. Anything
+    else - a click it matched by label, a field it chose to fill, a deliberate
+    refusal - is a real decision and does not need a 4-billion-parameter model
+    to second-guess it.
+    """
+    if plan.action is None:
+        return True                      # a refusal IS a decision
+    if plan.action.type == "noop" and "no confident action" in plan.reason.lower():
+        return False
+    return True
+
+
 @app.post("/act", response_model=Plan)
 def act(req: ActRequest) -> Plan:
-    """Prefer the LLM/VLM; fall back to rules so the demo degrades instead of
-    failing. The fallback is not a placeholder — a planner that always answers
-    is worth more on stage than one that is occasionally smarter."""
+    """
+    Tiered planning: cheap first, model only when the cheap path shrugs.
+
+    End-to-end latency is 15% of the score and a local VLM costs seconds, so
+    running it on every step would trade a well-scoring metric for a marginal
+    gain on another. The rule planner answers in about a millisecond and is
+    right for the common cases - fill this, click that. The VLM is for the
+    cases it cannot resolve, and for goals that need the screen understood
+    rather than merely matched.
+
+    Set VEIL_ALWAYS_LLM=1 to force the model on every request, which is useful
+    for demonstrating that the integration is real.
+    """
     leaked = audit_for_leaks(req.context)
+
+    rules = choose_action(req.goal, req.context, req.history)
+    force = os.getenv("VEIL_ALWAYS_LLM") == "1"
+
+    if not force and rules_are_confident(rules):
+        rules.leaked = leaked
+        rules.planner = "rules"
+        return rules
 
     llm_action = llm.plan(req.goal, req.context, req.screenshot, req.history)
     if llm_action:
@@ -199,12 +232,14 @@ def act(req: ActRequest) -> Plan:
                                         if k in {"index", "text", "dy"}}),
             reason=reason or "planned by model",
             leaked=leaked,
-            planner=f"llm:{os.getenv('VEIL_MODEL', 'gpt-4o-mini')}",
+            planner=f"llm:{os.getenv('VEIL_MODEL', 'qwen3-vl:8b-instruct')}",
         )
 
-    plan = choose_action(req.goal, req.context, req.history)
-    plan.planner = "rules" if not llm.available() else "rules (model unavailable)"
-    return plan
+    # The model was asked and did not produce a usable action - unavailable,
+    # timed out, or its reply failed validation. The cheap answer stands.
+    rules.leaked = leaked
+    rules.planner = "rules (model declined)" if llm.available() else "rules"
+    return rules
 
 
 @app.get("/planner")
@@ -213,8 +248,10 @@ def planner() -> dict[str, object]:
     rather than something the audience takes on trust."""
     return {
         "llm_configured": llm.available(),
-        "model": os.getenv("VEIL_MODEL", "gpt-4o-mini"),
+        "model": os.getenv("VEIL_MODEL", "qwen3-vl:8b-instruct"),
         "base_url": os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+        "always_llm": os.getenv("VEIL_ALWAYS_LLM") == "1",
+        "tiering": "rules first; model when the rules shrug",
     }
 
 

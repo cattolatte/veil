@@ -171,6 +171,26 @@ Stated plainly, because a judge will ask. Fuller treatment in the
 
 ---
 
+## Optional: a local vision-language model
+
+The server plans with a local **Qwen3-VL 8B** when one is available, so nothing
+leaves the machine even at the planning step:
+
+```bash
+ollama pull qwen3-vl:8b-instruct
+export OPENAI_BASE_URL=http://127.0.0.1:11434/v1
+export VEIL_MODEL=qwen3-vl:8b-instruct
+```
+
+Planning is **tiered**: the rule planner answers in about a millisecond and
+handles the common cases; the VLM runs only when the rules cannot decide. Set
+`VEIL_ALWAYS_LLM=1` to force it on every request. `GET /planner` reports which
+path is live.
+
+Any OpenAI-compatible endpoint works — vLLM, llama.cpp, LM Studio, or a hosted
+API. Without one, the rule planner answers alone and the system degrades rather
+than fails. See [ADR-012](docs/adr/012-local-vlm-planner.md) for why 8B over 4B.
+
 ## Running it
 
 ```bash

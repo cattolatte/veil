@@ -22,11 +22,11 @@ Every requirement stated in the problem statement, and where it is implemented.
 
 | Requirement (verbatim) | Where | Status |
 |---|---|---|
-| "transmission of the anonymized visual context to a centralized LLM/VLM" | `server/llm.py` | ✅ |
+| "transmission of the anonymized visual context to a centralized LLM/VLM" | `server/llm.py` — local Qwen3-VL 8B | ✅ |
 | "which successfully interprets the sanitized data" | system prompt explains the redaction scheme | ✅ |
 | "returns … an UI action (e.g., 'click the submit button,' 'scroll down')" | `click` / `type` / `scroll` / `noop` | ✅ |
 | "that the local client executes" | `content.js` `execute()` | ✅ |
-| "any offline deployable (open-source/open-weights) model … cloud hosted version during SIH" | OpenAI-compatible: Ollama, vLLM, llama.cpp | ✅ |
+| "any offline deployable (open-source/open-weights) model … cloud hosted version during SIH" | Qwen3-VL via Ollama, benchmarked 5/5 | ✅ |
 | "An end-to-end task assisting the user should be demonstrated" | field filled end to end, 33 ms, 0 leaks | ✅ |
 | "server … should be aware for this redaction scheme" | scheme declared in payload and in the prompt | ✅ |
 

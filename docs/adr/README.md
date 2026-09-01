@@ -18,3 +18,4 @@ that held.
 | [009](009-neural-tagger-not-shipped.md) | Build the neural tagger, do not ship it yet | Accepted |
 | [010](010-screen-perception.md) | A screen-perception model, trained on real pages | Accepted |
 | [011](011-llm-planner.md) | An LLM/VLM plans; validation decides what is allowed | Accepted |
+| [012](012-local-vlm-planner.md) | A local VLM plans, behind the redaction | Accepted |
