@@ -211,12 +211,24 @@ def act(req: ActRequest) -> Plan:
     rather than merely matched.
 
     Set VEIL_ALWAYS_LLM=1 to force the model on every request, which is useful
-    for demonstrating that the integration is real.
+    for demonstrating that the integration is real. It does NOT override a
+    refusal - see below.
     """
     leaked = audit_for_leaks(req.context)
 
     rules = choose_action(req.goal, req.context, req.history)
     force = os.getenv("VEIL_ALWAYS_LLM") == "1"
+
+    # A refusal is TERMINAL, even under VEIL_ALWAYS_LLM. Escalating it would
+    # give the model a second chance at a goal the rules already judged unsafe,
+    # and the danger is not that it fills the password field - the validator
+    # catches that - but that it writes the secret from the goal text into some
+    # other, non-sensitive field. That action is structurally valid, so no
+    # validator can reject it. The only safe move is not to ask.
+    if rules.action is None:
+        rules.leaked = leaked
+        rules.planner = "rules (refused; not escalated)"
+        return rules
 
     if not force and rules_are_confident(rules):
         rules.leaked = leaked
