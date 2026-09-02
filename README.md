@@ -7,7 +7,7 @@
 A local model reads the screen and redacts sensitive content *before any network request*.
 Only anonymised structure reaches the server — which returns an action the client executes.
 
-[**Live demo**](https://cattolatte.github.io/veil/) · [Architecture](docs/ARCHITECTURE.md) · [Threat model](docs/THREAT_MODEL.md) · [Decisions](docs/adr/README.md) · [Metrics](docs/METRICS.md)
+[**Live demo**](https://cattolatte.github.io/veil/) · [Run it](RUN.md) · [Architecture](docs/ARCHITECTURE.md) · [Threat model](docs/THREAT_MODEL.md) · [Decisions](docs/adr/README.md) · [Metrics](docs/METRICS.md)
 
 [![CI](https://github.com/cattolatte/veil/actions/workflows/ci.yml/badge.svg)](https://github.com/cattolatte/veil/actions/workflows/ci.yml)
 [![Deploy demo](https://github.com/cattolatte/veil/actions/workflows/pages.yml/badge.svg)](https://github.com/cattolatte/veil/actions/workflows/pages.yml)
