@@ -11,7 +11,7 @@ Only anonymised structure reaches the server — which returns an action the cli
 
 [![CI](https://github.com/cattolatte/veil/actions/workflows/ci.yml/badge.svg)](https://github.com/cattolatte/veil/actions/workflows/ci.yml)
 [![Deploy demo](https://github.com/cattolatte/veil/actions/workflows/pages.yml/badge.svg)](https://github.com/cattolatte/veil/actions/workflows/pages.yml)
-![Tests](https://img.shields.io/badge/tests-26%20passing-4ade80)
+![Tests](https://img.shields.io/badge/tests-30%20passing-4ade80)
 ![Invariants](https://img.shields.io/badge/privacy%20invariants-5%2F5-4ade80)
 ![Latency](https://img.shields.io/badge/capture-8.9%20ms-818cf8)
 ![Heap](https://img.shields.io/badge/heap-3.1%20MB-818cf8)
