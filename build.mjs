@@ -5,8 +5,14 @@
  * cannot use ES module `import`. Loading src/content.js directly fails at
  * parse time in both Chrome and Firefox. So it is bundled to a single IIFE.
  *
- * The service worker is exempt: MV3 supports `"type": "module"` there, and
- * background.js is copied as-is.
+ * The service worker is bundled too. MV3 does support `"type": "module"`
+ * there, so `import` is legal -- but only if what it imports is actually
+ * present. background.js used to be copied on its own, which left three
+ * relative imports pointing at files that live in src/ and were never copied.
+ * Brave 404'd on dist/lib/browser.js, service worker registration failed with
+ * status code 3, and with no background context the popup's message to the
+ * content script never resolved: the UI sat on "Running..." forever, with
+ * nothing in the page console and no request ever reaching the server.
  */
 import * as esbuild from "esbuild";
 import { cp, mkdir, rm } from "node:fs/promises";
@@ -48,6 +54,19 @@ const popupConfig = {
   legalComments: "none",
 };
 
+// Bundled as ESM because the manifest declares `"type": "module"`. Bundling
+// also means the import graph collapses into one file, so there is nothing
+// left to 404 on.
+const backgroundConfig = {
+  entryPoints: ["extension/src/background.js"],
+  bundle: true,
+  format: "esm",
+  target: ["chrome110", "firefox121"],
+  outfile: `${OUT}/background.js`,
+  logLevel: "info",
+  legalComments: "none",
+};
+
 const config = {
   entryPoints: ["extension/src/content.js"],
   bundle: true,
@@ -69,12 +88,11 @@ const testConfig = {
 };
 
 if (watch) {
-  const ctxs = await Promise.all([esbuild.context(config), esbuild.context(testConfig), esbuild.context(popupConfig)]);
+  const ctxs = await Promise.all([esbuild.context(config), esbuild.context(testConfig), esbuild.context(popupConfig), esbuild.context(backgroundConfig)]);
   await Promise.all(ctxs.map((c) => c.watch()));
   console.log("watching…");
 } else {
-  await Promise.all([esbuild.build(config), esbuild.build(testConfig), esbuild.build(popupConfig)]);
-  await cp("extension/src/background.js", `${OUT}/background.js`);
+  await Promise.all([esbuild.build(config), esbuild.build(testConfig), esbuild.build(popupConfig), esbuild.build(backgroundConfig)]);
 
   await mkdir("extension/vendor", { recursive: true });
   for (const f of ORT_ASSETS) {
