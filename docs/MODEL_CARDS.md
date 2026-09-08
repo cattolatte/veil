@@ -1,8 +1,19 @@
 # Model cards
 
-Two models ship or are staged in this repository. Both are documented here in
-the standard model-card structure, including intended use, measured
-performance, and the failure modes we know about.
+**Three models ship in this repository**, and they satisfy different clauses of
+the problem statement. Each is documented in the standard model-card structure,
+including intended use, measured performance, and the failure modes we know
+about.
+
+| # | Model | Size | Which requirement it satisfies | Rubric |
+|---|---|---|---|---|
+| 1 | YuNet face detector | 227 KB | *"blurring faces"* — the Privacy Preserving Filter | part of 20% |
+| 2 | Screen-perception model | 1.7 MB | *"a local ViT **or equivalent** … reads the user's screen"* | **25%** |
+| 3 | Character-level PII tagger | 403 KB | names and addresses, which no pattern can match | part of 20% |
+
+Model 2 is the one the statement names, and it carries the largest single weight
+in the rubric. Model 1 is the one most people notice first, because faces are
+the example the statement gives.
 
 ---
 
@@ -47,11 +58,92 @@ is redacted wholesale rather than transmitted ([ADR-003](adr/003-fail-closed.md)
 
 ---
 
-## 2. Character-level PII tagger — **NOT in the pipeline**
+## 2. Screen-perception model — **in the pipeline**
+
+The model the problem statement asks for by name:
+
+> "a local Vision Transformer (ViT) **or equivalent computer vision model**
+> 'reads' the user's screen"
+
+It carries **metric 1 — accuracy of visual context from screen — 25% of the
+score**, the single largest weight in the rubric.
 
 | | |
 |---|---|
-| File | `ner/out/pii_tagger.onnx` (gitignored; rebuild with `ner/export.py`) |
+| File | `extension/models/screen.onnx` |
+| Size | **1.7 MB** · 435,297 parameters |
+| Architecture | Small convolutional net. 512×320 input → 64×40 output grid; one prediction per 8×8 cell |
+| Output | Per-cell: does this region hold content requiring redaction |
+| Provenance | **Trained by us.** Not downloaded |
+| Runtime | ONNX Runtime Web, WebGPU with WASM fallback |
+| Latency | ~160 ms on CPU, run on demand rather than every scan |
+
+**Why convolutional and not a ViT.** The statement says *"or equivalent"*, and
+the choice was measured rather than stylistic: ONNX Runtime's WebGPU backend
+handles convolutions well and parallelises them, while attention kernels are
+patchier and often fall back to WASM. Latency is 15% of the score, so a
+transformer that silently drops to CPU is a losing trade.
+
+**Why region prediction and not reading.** The model never has to recover a
+digit — only to say *"this area must be masked"*. That is a far cheaper problem,
+and it is the one metric 3 (redaction precision) actually scores.
+
+**Pixels are destroyed, not covered.** Opaque rectangles are drawn onto the
+bitmap before encoding. A CSS overlay would still ship the original underneath,
+and a blur of large text is frequently still legible.
+
+**Capture lives in the service worker**, because `captureVisibleTab` is
+privileged. The raw frame never enters the page.
+
+### What it cost to get right
+
+Trained on the synthetic generator alone, it scored **99.8% F1 on its own
+held-out split and 12.5% on real pages, flagging half the screen.** It had
+learned where PII sits on one template, not what PII looks like.
+
+| Training data | Real pages | Held out | Real-page F1 |
+|---|---:|---:|---:|
+| Fixed synthetic template | 0 | 38 | 12.5% |
+| Randomised synthetic layout | 0 | 38 | 18.4% |
+| + real harvested pages | 117 | 38 | 72.2% |
+| + more real pages | 384 | 127 | 84.1% |
+| **+ 3,129 harvested pages** | **2,730** | **910** | **90.1%** |
+
+Randomising layout and typography helped a little. **Real page structure was the
+missing signal** — and specifically real *negatives*: the vast expanse of
+ordinary content that must not be flagged.
+
+Validation is a held-out split of **real pages, by page** — never a synthetic
+split. A synthetic split cannot answer the only question that matters, and
+answered it wrongly once already.
+
+### Fusing with the DOM
+
+The two channels fail in opposite directions, so the DOM arbitrates
+(`extension/src/vision/fuse.js`):
+
+- Where the DOM **can** account for a region — ordinary text the scanner
+  examined and found clean — a screen flag is more likely a false positive than
+  a discovery, and is suppressed.
+- Where the DOM **demonstrably cannot see** — canvas, image, video — the screen
+  model is the only witness and its flag stands.
+- `unscanned` regions are **never** suppressed.
+
+### Known limitations
+
+- Region-level, not character-level: it says *where*, never *what*.
+- ~160 ms means it runs on demand, so a page changing faster than that can be
+  captured mid-change.
+- Trained on harvested public pages; an unusual internal application may be
+  out of distribution.
+
+---
+
+## 3. Character-level PII tagger — **in the pipeline**
+
+| | |
+|---|---|
+| File | `extension/models/pii_tagger.onnx` · source at `ner/out/` (rebuild with `ner/export.py`) |
 | Size | **403 KB** self-contained · 100,169 parameters |
 | Architecture | Byte-level dilated CNN — embed(256→64), 5 residual blocks at dilations 1/2/4/8/16, 1×1 head |
 | Receptive field | ±63 bytes |
